@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/branding/keyflux-logo-v2.png" alt="Keyflux keyboard logo with colorful keycaps" width="720">
+</p>
+
 # Keyflux
 
 **English** | [简体中文](README.zh-CN.md)

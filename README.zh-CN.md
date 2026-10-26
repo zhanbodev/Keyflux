@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/branding/keyflux-logo-v2.png" alt="Keyflux 键盘标志，带彩色灯光键帽" width="720">
+</p>
+
 # Keyflux
 
 [English](README.md) | **简体中文**
