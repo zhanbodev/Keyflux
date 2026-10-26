@@ -9,7 +9,7 @@ Status: **v1 draft for Keyflux v0.1**. This document describes the implemented e
 ```text
 AI source → adapter → AgentEvent v1 → state aggregation
                                          ↓
-                                  Theme v1 / renderer (planned)
+                                  Theme v1/v2 / renderer (planned)
                                          ↓
                                KeyboardDriver → HID transport
 ```
@@ -19,7 +19,8 @@ AI source → adapter → AgentEvent v1 → state aggregation
 | AI adapter | [AgentEvent schema](../schemas/agent-event-v1.schema.json), [event.zig](../src/event.zig) | CLI or local IPC; any implementation language |
 | Keyboard model | [Keyboard schema](../schemas/keyboard-v1.schema.json), [device.zig](../src/device.zig) | Validated JSON contributed with evidence; no runtime auto-discovery from model files |
 | Keyboard driver | `KeyboardDriver` in [device.zig](../src/device.zig) | Compiled Zig source; simulated daemon plus an experimental manual Kick75 CLI driver |
-| Color theme | [Theme schema](../schemas/theme-v1.schema.json), [theme.zig](../src/theme.zig) | JSON validation, import, export, and hot reload |
+| Color theme | [Theme v1](../schemas/theme-v1.schema.json), [Theme v2](../schemas/theme-v2.schema.json), [theme.zig](../src/theme.zig) | Versioned main/side configuration, validation, import/export and main-signal hot reload |
+| Keyboard preview | [KeyboardPreview v1](specs/keyboard-preview-v1.md) | Bundled screen-only model geometry; separate from HID layout mapping |
 | Animated effect | EffectRenderer, planned for v0.4 | No renderer registration, frame submission, or binary-plugin loader yet |
 
 The core owns task aggregation, lighting ownership, recovery, and device scheduling. An AI adapter never opens HID. A theme never contains hardware commands. A driver never interprets conversation content.
@@ -201,6 +202,7 @@ pub const VTable = struct {
     capture: *const fn (*anyopaque) anyerror!Capture,
     setSolid: *const fn (*anyopaque, Lighting) anyerror!void,
     restore: *const fn (*anyopaque, Capture) anyerror!void,
+    setSideSolid: ?*const fn (*anyopaque, Lighting) anyerror!void = null,
 };
 ```
 
@@ -282,3 +284,9 @@ For a contribution, provide:
 - Separate software/simulation results from physical validation. CLI `gate` checks self-reported material and never unlocks a device.
 
 Run `zig build test`, the relevant integration tests, and the appropriate `validate-*` command. See the [contribution checklist (Chinese)](../CONTRIBUTING.md), [validation record (Chinese)](VALIDATION.md), and focused drafts: [events](specs/agent-event-v1.md), [keyboards](specs/keyboard-v1.md), [themes](specs/theme-v1.md) (Chinese).
+
+### Main/side editing and preview extensions
+
+[Theme v2](specs/theme-v2.md) preserves main semantics and adds optional enabled/follow-main/independent side configuration. v1 exports keep their original fields. Side configuration is persisted but not scheduled on hardware; status returns `side_write_enabled:false`. The compiled driver seam adds `Zone`, `solid_side` and an optional `setSideSolid` callback, with default denial and mandatory restoration capability. Native recovery variants and protocol allowlists must be independently extended and verified before activation.
+
+[KeyboardPreview v1](specs/keyboard-preview-v1.md) defines housing bounds, key rectangles/legends/system symbols and side-strip shapes. Contribute JSON plus provenance and validator results. Preview geometry is not a firmware LED index map; a layout or model picker never enables HID control.

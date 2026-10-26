@@ -16,8 +16,15 @@ case "${1:-}" in
         bundle_id=tech.nuclx.keyflux.dev
         bundle_name="Keyflux Dev"
         ;;
+    --check)
+        app=".build/macos-check/Keyflux Check.app"
+        core_prefix="$PWD/.build/macos-check/core"
+        zig_optimization=Debug
+        bundle_id=tech.nuclx.keyflux.check
+        bundle_name="Keyflux Check"
+        ;;
     --help|-h)
-        printf '%s\n' 'Usage: sh scripts/package-macos.sh [--debug]'
+        printf '%s\n' 'Usage: sh scripts/package-macos.sh [--debug|--check]'
         exit 0
         ;;
     *) printf '%s\n' "Unknown option: $1" >&2; exit 1 ;;
@@ -39,7 +46,9 @@ swiftc "$@" -swift-version 6 \
     -target "$(uname -m)-apple-macosx13.0" \
     -sdk "$(xcrun --sdk macosx --show-sdk-path)" \
     -module-cache-path "$CLANG_MODULE_CACHE_PATH" \
-    macos/Sources/KeyfluxApp/main.swift -o "$app/Contents/MacOS/KeyfluxApp"
+    macos/Sources/KeyfluxApp/*.swift -o "$app/Contents/MacOS/KeyfluxApp"
+mkdir -p "$app/Contents/Resources/Keyboards"
+cp macos/Sources/KeyfluxApp/Resources/Keyboards/*.json "$app/Contents/Resources/Keyboards/"
 cp "$core_prefix/bin/keyflux" "$app/Contents/MacOS/keyflux"
 cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

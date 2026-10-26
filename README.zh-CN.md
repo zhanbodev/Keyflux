@@ -16,7 +16,7 @@
 - 模拟键盘：相同写入去重、持久化恢复日志、强制终止后的恢复。
 - NuPhy USB HID 只读枚举，以及实验性的 Kick75 IO（`19f5:1026`）主灯驱动：手动常亮、精确回读、完整原态持久恢复。
 - Codex hook 适配器，以及可选的本机鉴权 OTLP/HTTP 接收器，支持 JSON 和 protobuf 日志。
-- macOS 原生菜单栏／设置应用：逐状态颜色和亮度、未保存配色预览、主题导入导出。
+- macOS 原生应用：顶部固定整键盘预览、按型号的布局、逐状态 RGB／亮度编辑、主键区与侧灯独立配色；Kick75 提取自提供的 NuPhy IO 元素，Air75 V3 为布局示例。
 - 版本化的事件、键盘型号和主题契约，附校验工具及贡献指南。
 
 Thinking 必须来自明确的 reasoning 事件；沉默、经过时间或没有工具调用都不能证明正在思考。完成色表示回合结束，不代表结果一定正确。
@@ -101,13 +101,17 @@ zig build test
 ./scripts/dev-macos.sh --help
 ```
 
+`--check` 使用 `.build/macos-check` 独立构建，可在已有开发实例运行时执行。
+
 可用 `--state-dir /absolute/path` 指定开发实例目录，重复启动前先退出当前启动脚本。需要手动启动 Swift 界面时，先构建核心，再运行：
 
 ```sh
 swift run --package-path macos --scratch-path .build/macos KeyfluxApp --core "$PWD/zig-out/bin/keyflux"
 ```
 
-当前设置界面使用简体中文，可以启动只读或模拟核心。关闭设置窗口或退出设置应用后，独立核心继续运行；使用“停止核心”或 `keyflux stop` 明确停止并恢复模拟设备。
+设置界面顶部固定显示键盘，下方配色区可滚动。选择预览状态或跟随核心状态，调整取色器、HEX 或亮度，即可同时看到主键区和侧灯的效果。点击键帽／灯条或切换灯区标签选择编辑区域；侧灯可跟随主键区，也可逐状态独立配色。
+
+提供保存、撤销、预设及导入导出；兼容导入 v1，导出明确版本的 [Theme v2](docs/specs/theme-v2.md)。侧灯目前**仅保存配置与屏幕预览**，不会启用实体侧灯或 AI 自动灯控。正常打开 App 会连接已有核心，或启动只读核心，无需手动启动守护进程即可编辑配置。关闭窗口或退出设置应用后核心继续运行，通过电源菜单或 `keyflux stop` 停止。
 
 生成本地开发包：
 
@@ -157,8 +161,10 @@ Ubuntu 等开发系统可用 `zig test src/tests.zig` 验证纯 Zig 核心。mac
 | 键盘型号 | 型号描述文件、准确的设备／固件证据与校验结果 |
 | 键盘协议 | 实现 `KeyboardDriver` 的 Zig 驱动、测试和恢复证据 |
 | AI 接入 | 任意语言适配器，通过 CLI／本地 IPC 提交 `AgentEvent v1` |
-| 配色主题 | `Theme v1` JSON，校验后导入，无需重新编译 |
+| 配色主题 | `Theme v1/v2` JSON，校验后导入，无需重新编译 |
 | 动态灯效 | 后续 renderer 契约；逐键输出和蛇形效果尚未实现 |
+
+键盘屏幕布局提供独立的 [KeyboardPreview v1 规范](docs/specs/keyboard-preview-v1.md)与 `python3 scripts/validate-keyboard-previews.py` 校验器。预览布局不等于硬件兼容，也不包含固件 LED 索引。
 
 描述文件不能执行任意 HID 命令，也不会自动启用驱动。当前没有外部二进制插件加载器或稳定插件 ABI。验收清单见 [CONTRIBUTING.md](CONTRIBUTING.md)，机器可读契约见 [schemas/](schemas)。
 

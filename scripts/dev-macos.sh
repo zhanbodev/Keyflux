@@ -57,6 +57,21 @@ case "$state_dir" in
     *) state_dir="$PWD/$state_dir" ;;
 esac
 cd "$root"
+if [ "$check" -eq 1 ]; then
+    command -v python3 >/dev/null 2>&1 || { printf '%s\n' 'Python 3 is required for --check.' >&2; exit 1; }
+    check_core="$root/.build/macos-check/Keyflux Check.app/Contents/MacOS/keyflux"
+    if [ "$no_build" -eq 0 ]; then
+        sh "$root/scripts/package-macos.sh" --check
+    fi
+    [ -x "$check_core" ] || { printf '%s\n' 'Check bundle missing. Run --check without --no-build.' >&2; exit 1; }
+    python3 "$root/scripts/validate-keyboard-previews.py"
+    python3 "$root/tests/preview_layouts.py"
+    zig build test
+    python3 "$root/tests/integration.py" "$check_core"
+    printf '%s\n' 'Independent development build and checks passed.'
+    exit 0
+fi
+
 mkdir -p "$dev_root/logs"
 lock="$dev_root/launcher.lock"
 if ! mkdir "$lock" 2>/dev/null; then
@@ -110,13 +125,6 @@ fi
 [ -x "$core" ] && [ -x "$app/Contents/MacOS/KeyfluxApp" ] || {
     printf '%s\n' 'Debug bundle missing. Run again without --no-build.' >&2; exit 1;
 }
-if [ "$check" -eq 1 ]; then
-    command -v python3 >/dev/null 2>&1 || { printf '%s\n' 'Python 3 is required for --check.' >&2; exit 1; }
-    zig build test
-    python3 "$root/tests/integration.py" "$core"
-    printf '%s\n' 'Development build and checks passed.'
-    exit 0
-fi
 
 core_log="$dev_root/logs/core-$$.log"
 ui_log="$dev_root/logs/ui-$$.log"

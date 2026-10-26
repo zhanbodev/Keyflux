@@ -2,12 +2,23 @@ const std = @import("std");
 const theme = @import("theme.zig");
 pub const Capabilities = struct {
     solid_main: bool = false,
+    solid_side: bool = false,
+    per_key: bool = false,
+    readback: bool = false,
+    restore: bool = false,
+    max_frames_per_second: u16 = 0,
+};
+// Frozen serialized model-v1 capabilities. Runtime driver capabilities may
+// grow independently; side metadata needs an explicitly versioned model format.
+pub const ModelCapabilitiesV1 = struct {
+    solid_main: bool = false,
     per_key: bool = false,
     readback: bool = false,
     restore: bool = false,
     max_frames_per_second: u16 = 0,
 };
 pub const Identity = struct { model_id: []const u8, firmware: []const u8, profile: []const u8 };
+pub const Zone = enum { main, side };
 pub const Lighting = struct { color: theme.Color, brightness: u8 };
 pub const Capture = struct {
     identity: Identity,
@@ -29,6 +40,7 @@ pub const KeyboardDriver = struct {
         capture: *const fn (*anyopaque) anyerror!Capture,
         setSolid: *const fn (*anyopaque, Lighting) anyerror!void,
         restore: *const fn (*anyopaque, Capture) anyerror!void,
+        setSideSolid: ?*const fn (*anyopaque, Lighting) anyerror!void = null,
     };
     pub fn probe(self: KeyboardDriver) !Identity {
         return self.vtable.probe(self.context);
@@ -40,8 +52,16 @@ pub const KeyboardDriver = struct {
         return self.vtable.capture(self.context);
     }
     pub fn setSolid(self: KeyboardDriver, value: Lighting) !void {
+        if (value.brightness > 100) return error.InvalidBrightness;
         if (!self.capabilities().solid_main) return error.UnsupportedCapability;
         try self.vtable.setSolid(self.context, value);
+    }
+    pub fn setZoneSolid(self: KeyboardDriver, zone: Zone, value: Lighting) !void {
+        if (value.brightness > 100) return error.InvalidBrightness;
+        if (zone == .main) return self.setSolid(value);
+        if (!self.capabilities().solid_side or !self.capabilities().restore) return error.UnsupportedCapability;
+        const setter = self.vtable.setSideSolid orelse return error.UnsupportedCapability;
+        try setter(self.context, value);
     }
     pub fn restore(self: KeyboardDriver, original: Capture) !void {
         if (!self.capabilities().restore) return error.UnsupportedCapability;
@@ -121,7 +141,7 @@ pub const Model = struct {
     firmware: struct { family: []const u8 = "unknown", versions: []const []const u8 = &.{} } = .{},
     verified_on: []const Verification = &.{},
     layout: ?Layout = null,
-    capabilities: Capabilities,
+    capabilities: ModelCapabilitiesV1,
     verification: enum { recognized, experimental, verified },
     evidence: []const []const u8,
     pub const Verification = struct {

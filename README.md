@@ -16,7 +16,7 @@ A local AI status lighting companion, built around a Zig core for macOS and Wind
 - A simulated keyboard with write deduplication, a durable recovery journal, and recovery after forced termination.
 - Read-only NuPhy USB HID inventory, plus an experimental Kick75 IO (`19f5:1026`) main-light driver with manual solid colors, exact readback and durable raw-state recovery.
 - A Codex hook adapter and an optional authenticated, loopback-only OTLP/HTTP receiver for JSON and protobuf logs.
-- A native macOS menu bar/settings app with per-state colors, brightness, unsaved-color previews, and theme import/export.
+- A native macOS app with a pinned keyboard preview, model-specific geometry, per-state RGB/brightness editing, and separate main/side palettes. Kick75 uses geometry extracted from the supplied NuPhy IO element; Air75 V3 is a layout example.
 - Versioned event, keyboard-model, and theme contracts with validators and contribution guidance.
 
 Thinking requires an explicit reasoning event. Silence, elapsed time, or the absence of tool calls do not establish that phase. Completion means a turn ended, not that its result is correct.
@@ -101,13 +101,17 @@ Press Ctrl+C in that terminal or quit the menu bar app to stop the development s
 ./scripts/dev-macos.sh --help
 ```
 
+`--check` builds separately under `.build/macos-check` and can run while an existing development instance stays open.
+
 Use `--state-dir /absolute/path` for a custom development instance. Stop the current launcher before starting another. For a manual Swift launch, after building the core:
 
 ```sh
 swift run --package-path macos --scratch-path .build/macos KeyfluxApp --core "$PWD/zig-out/bin/keyflux"
 ```
 
-The current settings UI uses Simplified Chinese and can start a read-only or simulated core. Closing settings or quitting the settings app leaves the independent core running. Use **停止核心** (Stop core) or `keyflux stop` to stop it and restore the simulated device.
+The settings UI uses Simplified Chinese. The top keyboard stays visible while the controls below scroll. Select a preview state (or follow the core), edit the color picker/HEX/brightness, and see main keys and side strips update immediately. Click a key/strip or use the zone tabs to choose what to edit. Side colors can follow the main palette or use independent per-state values.
+
+Themes support Save, undo, presets and import/export. The editor imports v1 and exports explicit [Theme v2](docs/specs/theme-v2.md); a side setting is currently **configuration and screen preview only**. It does not activate side HID writes or AI-driven physical lighting. On normal startup the app connects to an existing core or starts a read-only one, keeping configuration editing available without manually launching a daemon. Closing settings or quitting the settings app leaves the core running; use the power menu or `keyflux stop` to stop it.
 
 To build a local development bundle:
 
@@ -157,8 +161,11 @@ Start with the **[Extension Interface Specification](docs/EXTENSIONS.md)** ([简
 | Keyboard model | A model descriptor, exact device/firmware evidence, and validation results |
 | Keyboard protocol | A compiled Zig driver using `KeyboardDriver`, tests, and recovery evidence |
 | AI integration | Any-language adapter emitting `AgentEvent v1` through the CLI/local IPC |
-| Color theme | `Theme v1` JSON, validated and imported without recompiling |
+| Color theme | `Theme v1/v2` JSON, validated and imported without recompiling |
+| Keyboard preview | [Model geometry](docs/specs/keyboard-preview-v1.md), legends and screen-only light shapes |
 | Animated effect | Planned renderer contract; per-key output and snake effects are not implemented |
+
+Keyboard screen layouts have their own [KeyboardPreview v1 contract](docs/specs/keyboard-preview-v1.md) and `python3 scripts/validate-keyboard-previews.py` validator. They do not confer hardware compatibility or per-key addressing.
 
 Descriptors do not execute arbitrary HID commands or automatically activate drivers. There is no external binary-plugin loader or stable plugin ABI. See [CONTRIBUTING.md (Chinese)](CONTRIBUTING.md) for the evidence checklist, and [schemas/](schemas) for machine-readable contracts.
 

@@ -9,7 +9,7 @@
 ```text
 AI source → adapter → AgentEvent v1 → state aggregation
                                          ↓
-                                  Theme v1 / renderer (planned)
+                                  Theme v1/v2 / renderer (planned)
                                          ↓
                                KeyboardDriver → HID transport
 ```
@@ -19,7 +19,8 @@ AI source → adapter → AgentEvent v1 → state aggregation
 | AI 适配器 | [AgentEvent Schema](../schemas/agent-event-v1.schema.json)、[event.zig](../src/event.zig) | CLI 或本地 IPC，语言不限 |
 | 键盘型号 | [Keyboard Schema](../schemas/keyboard-v1.schema.json)、[device.zig](../src/device.zig) | 提交经过校验的 JSON 与证据；没有根据型号文件自动发现驱动的机制 |
 | 键盘驱动 | [device.zig](../src/device.zig) 中的 `KeyboardDriver` | 编译进入核心的 Zig 源码；模拟守护进程和实验性 Kick75 手动 CLI 驱动 |
-| 配色主题 | [Theme Schema](../schemas/theme-v1.schema.json)、[theme.zig](../src/theme.zig) | JSON 校验、导入导出与热加载 |
+| 配色主题 | [Theme v1](../schemas/theme-v1.schema.json)、[Theme v2](../schemas/theme-v2.schema.json)、[theme.zig](../src/theme.zig) | 主灯／侧灯配置校验、导入导出与主灯信号热加载 |
+| 型号预览 | [KeyboardPreview v1](specs/keyboard-preview-v1.md) | 独立屏幕几何资源，不等于 HID 灯位映射 |
 | 动态灯效 | EffectRenderer，规划于 v0.4 | 尚无 renderer 注册、帧提交或二进制插件加载器 |
 
 核心统一负责状态汇总、灯光所有权、恢复与设备调度。AI 适配器不打开 HID，主题不包含硬件命令，驱动不解释对话正文。
@@ -201,6 +202,7 @@ pub const VTable = struct {
     capture: *const fn (*anyopaque) anyerror!Capture,
     setSolid: *const fn (*anyopaque, Lighting) anyerror!void,
     restore: *const fn (*anyopaque, Capture) anyerror!void,
+    setSideSolid: ?*const fn (*anyopaque, Lighting) anyerror!void = null,
 };
 ```
 
@@ -282,3 +284,9 @@ render(state, monotonic_time, layout, capabilities, parameters) → logical_fram
 - 软件／模拟与真机验收分开记录；CLI gate 检查自报材料，不能解锁设备。
 
 运行 `zig build test`、相关集成测试及对应 validate-* 命令。详见[贡献清单](../CONTRIBUTING.md)、[验收记录](VALIDATION.md)，以及专项草案：[事件](specs/agent-event-v1.md)、[键盘](specs/keyboard-v1.md)、[主题](specs/theme-v1.md)。
+
+### 主键区／侧灯与型号预览扩展
+
+[Theme v2](specs/theme-v2.md) 保留主键区语义，显式增加 enabled、follow_main／independent 和独立侧灯状态配色。v1 导出字段不变。侧灯配置会持久保存，但当前不调度硬件写入；status 返回 side_write_enabled:false。编译期驱动预留 Zone、solid_side 能力和可选 setSideSolid 回调，默认拒绝，且必须具有恢复能力。原始恢复 variant 和协议写入白名单须独立扩展、验证后才能启用。
+
+[KeyboardPreview v1](specs/keyboard-preview-v1.md) 定义外壳边界、键帽矩形／字符／系统图标及灯条形状。贡献 JSON、来源和校验结果即可扩展预览。屏幕坐标不是固件 LED 索引，模型选择器不启用 HID 控制。导入 NuPhy IO 元素的工具只提取布局，不执行网页，也不导入远程素材。

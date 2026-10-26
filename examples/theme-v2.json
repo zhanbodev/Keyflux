@@ -1,0 +1,69 @@
+{
+  "schema_version": 2,
+  "name": "Keyflux",
+  "completion_hold_ms": 5000,
+  "signals": {
+    "working": {
+      "color": "#3B82F6",
+      "brightness": 50
+    },
+    "thinking": {
+      "color": "#06B6D4",
+      "brightness": 50
+    },
+    "output": {
+      "color": "#8B5CF6",
+      "brightness": 50
+    },
+    "tool": {
+      "color": "#3B82F6",
+      "brightness": 50
+    },
+    "attention": {
+      "color": "#F97316",
+      "brightness": 50
+    },
+    "complete": {
+      "color": "#22C55E",
+      "brightness": 50
+    },
+    "error": {
+      "color": "#EF4444",
+      "brightness": 50
+    }
+  },
+  "side": {
+    "enabled": true,
+    "mode": "independent",
+    "signals": {
+      "working": {
+        "color": "#3B82F6",
+        "brightness": 50
+      },
+      "thinking": {
+        "color": "#22D3EE",
+        "brightness": 50
+      },
+      "output": {
+        "color": "#C084FC",
+        "brightness": 50
+      },
+      "tool": {
+        "color": "#3B82F6",
+        "brightness": 50
+      },
+      "attention": {
+        "color": "#F97316",
+        "brightness": 50
+      },
+      "complete": {
+        "color": "#22C55E",
+        "brightness": 50
+      },
+      "error": {
+        "color": "#EF4444",
+        "brightness": 50
+      }
+    }
+  }
+}

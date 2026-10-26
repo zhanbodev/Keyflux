@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keyflux.local/schemas/keyboard-preview-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "preview_only": {
+      "type": "boolean"
+    },
+    "width": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 50
+    },
+    "height": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 20
+    },
+    "note": {
+      "type": "string"
+    },
+    "keys": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 16
+          },
+          "kind": {
+            "enum": [
+              "key",
+              "knob"
+            ]
+          },
+          "x": {
+            "type": "number",
+            "minimum": 0
+          },
+          "y": {
+            "type": "number",
+            "minimum": 0
+          },
+          "w": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "h": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "symbol": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "kind",
+          "x",
+          "y",
+          "w",
+          "h"
+        ]
+      }
+    },
+    "lights": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "zone": {
+            "const": "side"
+          },
+          "x": {
+            "type": "number",
+            "minimum": 0
+          },
+          "y": {
+            "type": "number",
+            "minimum": 0
+          },
+          "w": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "h": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "zone",
+          "x",
+          "y",
+          "w",
+          "h"
+        ]
+      }
+    },
+    "source_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "name",
+    "preview_only",
+    "width",
+    "height",
+    "keys",
+    "lights"
+  ]
+}

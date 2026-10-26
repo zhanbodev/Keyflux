@@ -36,3 +36,7 @@ USB VID/PID / usage page / usage / interface：
 Adapter 用 `AgentEvent v1` 提交已观察的阶段，并声明能力。不要根据沉默、计时或提示词内容猜测 Thinking。新灯效通过纯计算 renderer 接口输出逻辑帧，不直接接触 HID。
 
 每个贡献使用 MIT 或明确兼容的许可，附来源。不要移植 Keyphore 的 GPL 代码进入当前 MIT 项目。
+
+## 键盘预览布局
+
+按 [KeyboardPreview v1](docs/specs/keyboard-preview-v1.md) 增加型号 JSON，运行 `python3 scripts/validate-keyboard-previews.py`。可以用 `scripts/import-nuphy-preview.py` 提取用户提供的 NuPhy IO DOM 坐标、字符和图标引用；不要提交带账号信息的页面或未经许可的外部素材。预览不含固件 LED 索引，也不证明硬件兼容。

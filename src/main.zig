@@ -122,6 +122,8 @@ const Runtime = struct {
         state: engine.Snapshot,
         backend: []const u8,
         main_write_enabled: bool,
+        side_write_enabled: bool = false,
+        theme_schema_versions: [2]u16 = .{ 1, 2 },
         release_ready: bool = false,
         acknowledged: ?devices.Lighting,
         device_error: ?[]const u8,

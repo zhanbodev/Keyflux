@@ -147,7 +147,7 @@ test "theme validation blocks malformed hex brightness version duration" {
     t.signals.output.brightness = 101;
     try testing.expectError(error.InvalidBrightness, t.validate());
     t = .{};
-    t.schema_version = 2;
+    t.schema_version = 3;
     try testing.expectError(error.UnsupportedVersion, t.validate());
     t = .{};
     t.completion_hold_ms = 0;
@@ -251,4 +251,41 @@ test "late lifecycle events cannot roll back a newer turn or hide source loss" {
     _ = try c.apply(permission, 13);
     _ = try c.apply(e(.source_lost, "s", "next", "7", 14), 14);
     try testing.expectEqual(.unknown, c.snapshot(14).phase);
+}
+
+test "theme v2 keeps main and side independent while v1 serialization stays compatible" {
+    const a = testing.allocator;
+    const old = try themes.parse(a, "{\"schema_version\":1,\"signals\":{}}");
+    defer old.deinit();
+    const old_json = try std.json.Stringify.valueAlloc(a, old.value, .{});
+    defer a.free(old_json);
+    try testing.expect(std.mem.indexOf(u8, old_json, "side") == null);
+    try testing.expect(old.value.sideSignal(.thinking) == null);
+    var theme: themes.Theme = .{ .schema_version = 2, .side = .{ .enabled = true, .mode = .independent } };
+    theme.side.?.signals.thinking.color = "#C084FC";
+    try theme.validate();
+    try testing.expectEqualStrings("#06B6D4", theme.signal(.thinking).?.color);
+    try testing.expectEqualStrings("#C084FC", theme.sideSignal(.thinking).?.color);
+    theme.side.?.mode = .follow_main;
+    try testing.expectEqualStrings(theme.signal(.thinking).?.color, theme.sideSignal(.thinking).?.color);
+    try testing.expect(theme.sideSignal(.idle) == null);
+    try testing.expect(theme.sideSignal(.unknown) == null);
+    theme.side.?.enabled = false;
+    try testing.expect(theme.sideSignal(.thinking) == null);
+    theme.schema_version = 1;
+    try testing.expectError(error.SideRequiresThemeV2, theme.validate());
+    try testing.expectError(error.SideRequiresThemeV2, themes.parse(a, "{\"schema_version\":1,\"side\":null}"));
+    theme.schema_version = 2;
+    theme.side.?.signals.output.color = "#bad";
+    try testing.expectError(error.InvalidColor, theme.validate());
+}
+
+test "side writes require explicit capability and implementation" {
+    var device: devices.Simulated = .{};
+    const before = device.light;
+    try testing.expectError(error.UnsupportedCapability, device.driver().setZoneSolid(.side, before));
+    var invalid = before;
+    invalid.brightness = 101;
+    try testing.expectError(error.InvalidBrightness, device.driver().setSolid(invalid));
+    try testing.expectEqual(@as(u64, 0), device.writes);
 }

@@ -25,3 +25,7 @@
 预定纯计算契约：`render(state, monotonic_time, layout, capabilities, parameters) -> logical_frame`。帧描述逻辑灯位 RGB，不携带硬件报文。核心负责限速、丢弃过期帧和唯一写入者；驱动负责地址映射。
 
 蛇形路径按验证过的物理行交替方向遍历，不假设设备 LED 索引顺序就是物理顺序。没有 per_key 能力时不开放此效果。v0.4 才引入具体帧类型与 renderer 源码贡献示例，不在 v0.1 提供虚假的可执行动画接口。
+
+## Theme v2
+
+[Theme v2](theme-v2.md) 显式增加侧灯配置：enabled、follow_main／independent 以及独立状态配色。v1 的字段与导出语义保持不变；v1 不允许 side 字段。App 可导入旧配置，导出新版时明确使用 schema_version:2。侧灯仅保存和屏幕预览，当前没有实体侧灯写入。

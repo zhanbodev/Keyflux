@@ -52,7 +52,7 @@ class RuntimeTest(unittest.TestCase):
         args = [EXE, "serve", "--simulate", "--state-dir", str(self.directory)]
         if port:
             args += ["--otlp-port", str(port)]
-        self.process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
         lines = queue.Queue()
         threading.Thread(target=lambda: lines.put(self.process.stdout.readline()), daemon=True).start()
         line = lines.get(timeout=8)
@@ -60,7 +60,7 @@ class RuntimeTest(unittest.TestCase):
         self.assertTrue(json.loads(line)["ready"], line)
 
     def call(self, *args, data=None, check=True):
-        proc = subprocess.run([EXE, *args, "--state-dir", str(self.directory)], input=data, text=True, capture_output=True, timeout=5)
+        proc = subprocess.run([EXE, *args, "--state-dir", str(self.directory)], input=data, text=True, encoding="utf-8", capture_output=True, timeout=5)
         if check:
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         return proc
@@ -80,6 +80,33 @@ class RuntimeTest(unittest.TestCase):
             self.assertEqual(json.loads(result.stdout)["code"], "HardwareRequiresDefaultStateDirectory")
         self.assertFalse((self.directory / "kick75-recovery.json").exists())
         self.assertEqual(self.status()["backend"], "simulated")
+
+    def test_theme_v2_side_configuration_roundtrips_without_hardware_enable(self):
+        theme = json.loads(self.call("theme-get").stdout)["theme"]
+        self.assertEqual(theme["schema_version"], 1)
+        self.assertNotIn("side", theme)
+        theme["schema_version"] = 2
+        theme["name"] = "冰蓝主题"
+        theme["side"] = {"enabled": True, "mode": "independent", "signals": {"thinking": {"color": "#C084FC", "brightness": 25}}}
+        self.call("theme-set", data=json.dumps(theme))
+        saved = json.loads(self.call("theme-get").stdout)["theme"]
+        self.assertEqual(saved["side"]["signals"]["thinking"]["color"], "#C084FC")
+        self.assertEqual(saved["signals"]["thinking"]["color"], "#06B6D4")
+        self.assertFalse(self.status()["side_write_enabled"])
+        self.assertEqual(self.status()["theme_schema_versions"], [1, 2])
+        self.emit("turn_started")
+        self.emit("thinking")
+        self.assertEqual(self.status()["acknowledged"]["color"], dict(r=6, g=182, b=212))
+        invalid = json.loads(json.dumps(saved))
+        invalid["side"]["signals"]["thinking"]["brightness"] = 101
+        self.assertNotEqual(self.call("theme-set", data=json.dumps(invalid), check=False).returncode, 0)
+        self.assertEqual(json.loads(self.call("theme-get").stdout)["theme"], saved)
+        self.call("stop")
+        self.process.wait(timeout=5)
+        self.process.stdout.close()
+        self.process.stderr.close()
+        self.start()
+        self.assertEqual(json.loads(self.call("theme-get").stdout)["theme"], saved)
 
     def test_event_ipc_theme_preview_and_restore(self):
         self.emit("turn_started")
