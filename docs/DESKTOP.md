@@ -95,3 +95,10 @@ The App serializes probe/apply/restore calls. An initial successful mutation mar
 The actual Rust→Zig bridge was exercised on USB hardware: connect, 15% cyan-green solid, independent D5 readback, exact original 17-byte restoration, with side data unchanged. The opt-in Rust test is ignored by normal CI and requires explicit local execution. A mismatching fingerprint was also verified to reject before mutation.
 
 The custom menus support pointer, arrows, Home/End, Enter/Escape and focus return. The color picker uses RGB in the interface (hex remains only the Theme wire format), keyboard-accessible SV/hue controls, twelve presets and a bounded local recent-color list. The viewport is a fixed grid; the preview scales to the remaining height instead of pinning or scrolling. Screen-only light apertures come from the model catalog and are hidden when disabled, with no gray placeholder bars. The system tray uses a compact colored keyboard mark inspired by the Keyflux logo.
+
+
+## Console refinements
+
+State swatches are rounded squares. Theme import/export live in the circular top-right More menu, supplied by a compiled action list in `MoreMenu.tsx`; this is a UI extension point, not a runtime plugin loader. The popup supports arrow navigation, Escape, outside-click dismissal and focus return. Native theme-file dialogs and the existing bridge are unchanged.
+
+`Brightness.tsx` retains native range semantics for dragging, touch and keyboard input, with a custom filled track, larger hit area, focus halo and a transient percentage bubble. Drag updates remain immediate; the bubble closes on release, cancellation or window blur. Home/End select endpoints and arrows change one percentage point at a time.

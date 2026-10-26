@@ -94,3 +94,44 @@ test('invalid drafts remain rejected across polling', async ({ page }) => {
   await page.clock.fastForward(1800);
   await expect(page.locator('.feedback')).toContainText('配色名称、保持时间或颜色无效');
 });
+
+test('extension menu keyboard navigation and precise brightness dragging', async ({ page }) => {
+  await page.goto('/?fixture=1');
+  const more = page.getByRole('button', { name: '更多操作', exact: true });
+  await expect(more).toBeEnabled();
+  await more.focus();
+  await more.press('ArrowDown');
+  await expect(page.getByRole('menuitem', { name: '导入配色' })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('menuitem', { name: '导出配色' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(more).toBeFocused();
+  await more.click();
+  await page.screenshot({ path: 'test-results/extension-menu.png' });
+  await page.locator('.panel-heading h2').click();
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(page.locator('.zone-nav')).not.toContainText('导入配色');
+
+  const slider = page.getByRole('slider', { name: '亮度', exact: true });
+  const bounds = await slider.boundingBox();
+  if (!bounds) throw new Error('Brightness control missing');
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width * 0.8, bounds.y + bounds.height / 2, { steps: 12 });
+  const dragged = Number(await slider.inputValue());
+  expect(dragged).toBeGreaterThan(75);
+  expect(dragged).toBeLessThan(85);
+  await expect(page.locator('.brightness-tooltip')).toHaveText(`${dragged}%`);
+  await page.screenshot({ path: 'test-results/brightness-drag.png' });
+  await page.mouse.up();
+  await expect(page.locator('.brightness-tooltip')).toHaveCount(0);
+  await slider.press('Home');
+  await expect(slider).toHaveValue('0');
+  await slider.press('End');
+  await expect(slider).toHaveValue('100');
+  await slider.press('ArrowLeft');
+  await expect(slider).toHaveValue('99');
+  await slider.blur();
+  await expect(page.locator('.brightness-tooltip')).toHaveCount(0);
+});

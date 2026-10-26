@@ -3,6 +3,8 @@ import { command, fixture, loadTheme, type Device, type Status } from './bridge'
 import { KeyboardPreview, layouts } from './KeyboardPreview';
 import { ColorPicker } from './ColorPicker';
 import { Select } from './Select';
+import { MoreMenu } from './MoreMenu';
+import { Brightness } from './Brightness';
 import {
   defaultTheme,
   labels,
@@ -208,6 +210,32 @@ export function App() {
           <button className="connect-button" disabled={busy || !ready} onClick={connect}>
             {device.connected ? '断开' : '连接键盘'}
           </button>
+          <MoreMenu
+            disabled={!ready || busy}
+            actions={[
+              {
+                id: 'import-theme',
+                label: '导入配色',
+                onSelect: () =>
+                  void run(async () => {
+                    const imported = await command<unknown>('import_theme');
+                    if (imported !== null) {
+                      setTheme(parseTheme(imported));
+                      setNotice('已导入，保存后生效');
+                    }
+                  }),
+              },
+              {
+                id: 'export-theme',
+                label: '导出配色',
+                onSelect: () =>
+                  void run(async () => {
+                    if (await command<boolean>('export_theme', { theme: parseTheme(theme) }))
+                      setNotice('配色已导出');
+                  }),
+              },
+            ]}
+          />
         </div>
       </header>
       <section className="keyboard-stage" aria-label="键盘预览区">
@@ -233,33 +261,6 @@ export function App() {
             </svg>
             条形灯
           </button>
-          <div className="nav-actions">
-            <button
-              disabled={!ready || busy}
-              onClick={() =>
-                void run(async () => {
-                  const imported = await command<unknown>('import_theme');
-                  if (imported !== null) {
-                    setTheme(parseTheme(imported));
-                    setNotice('已导入，保存后生效');
-                  }
-                })
-              }
-            >
-              导入配色
-            </button>
-            <button
-              disabled={!ready || busy}
-              onClick={() =>
-                void run(async () => {
-                  if (await command<boolean>('export_theme', { theme: parseTheme(theme) }))
-                    setNotice('配色已导出');
-                })
-              }
-            >
-              导出配色
-            </button>
-          </div>
         </nav>
         <div className="states" aria-label="状态配色">
           {phases.map((p) => {
@@ -333,20 +334,12 @@ export function App() {
             onChange={(color) => update({ color })}
           />
           <div className="channel-row">
-            <label className="brightness">
-              亮度
-              <input
-                aria-label="亮度"
-                type="range"
-                min="0"
-                max="100"
-                value={signal.brightness}
-                disabled={!ready || busy || locked}
-                onFocus={beginEdit}
-                onChange={(e) => update({ brightness: Number(e.target.value) })}
-              />
-              <output>{signal.brightness}%</output>
-            </label>
+            <Brightness
+              value={signal.brightness}
+              disabled={!ready || busy || locked}
+              onBegin={beginEdit}
+              onChange={(brightness) => update({ brightness })}
+            />
             {zone === 'side' && (
               <span className="strip-hint">
                 {locked
