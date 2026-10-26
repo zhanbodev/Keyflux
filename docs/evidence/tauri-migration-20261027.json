@@ -38,7 +38,9 @@
     "supervisor_termination_cleans_owned_simulated_core": "passed",
     "fresh_reference_sprite_extraction_sha256": "passed",
     "tauri_vite_native_start_and_react_fast_refresh": "passed",
-    "windows_cross_compile_after_pipe_connection_fix": "passed"
+    "windows_cross_compile_after_pipe_connection_fix": "passed",
+    "windows_back_to_back_and_parallel_ipc": "passed in CI run 40362742137 (158d2c8)",
+    "macos_core_and_desktop_ci": "passed in CI run 40362742137 (158d2c8)"
   },
   "bundle": {
     "type": "macOS app",

@@ -84,3 +84,6 @@ Theme v2 显式增加 side 字段；v1 导入和导出字段不变。已验证 v
 迁移后的 Windows CI 复现既有连续请求失败：上一 named pipe 连接尚在等待 ACK／断开时，下一次 CreateFile 返回 ERROR_PIPE_BUSY，旧客户端立即报告 DaemonUnavailable。客户端现按 [Microsoft 的 named pipe 连接流程](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-client)，在发送任何请求前进行最多 1 秒的可用性等待；发送后不重放请求。回读按块读取并保留完整换行与 ACK 语义，上限为 2 秒。新增连续与六路并发客户端测试。修复已本地跨编译；Windows 运行结论以对应远端 CI 为准。
 
 主题导入也对齐 Zig 的合法省略值：部分状态、v2 侧灯默认字段与 side:null 会被明确展开为可编辑的 v2；v1 显式 side（包括 null）仍拒绝。实际开发入口与 React Fast Refresh 已通过本机 WebView 截图验证；临时测试标题已还原。
+
+
+`158d2c8` 的远端 [CI 40362742137](https://github.com/zhanbodev/Keyflux/actions/runs/40362742137) 已确认 macOS 核心／桌面检查通过，Windows 连续与六路并发、主题回读、崩溃恢复等 IPC 回归通过。Windows 余下两项隐私测试因读取运行中的独占 daemon.lock 报 PermissionError；测试改为断言该锁文件零字节，继续读取并扫描所有其他内容文件，不放宽锁的共享权限。最终完整运行状态以 GitHub 后续记录为准。

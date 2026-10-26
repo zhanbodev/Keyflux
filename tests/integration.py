@@ -74,6 +74,18 @@ class RuntimeTest(unittest.TestCase):
     def status(self):
         return json.loads(self.call("status").stdout)["result"]
 
+    def assert_private_state_excludes(self, secret):
+        for path in self.directory.iterdir():
+            if not path.is_file():
+                continue
+            if path.name == "daemon.lock":
+                # Windows deliberately denies reads while the daemon owns its
+                # lock. Checking that it has no bytes still proves it cannot
+                # contain prompt content, without weakening the OS lock.
+                self.assertEqual(path.stat().st_size, 0)
+            else:
+                self.assertNotIn(secret, path.read_bytes())
+
     def test_back_to_back_and_parallel_ipc_clients(self):
         # A fast client can finish before a Windows server consumes its ACK.
         # Pollers and theme readers must wait for the pipe, not lose requests.
@@ -175,9 +187,7 @@ class RuntimeTest(unittest.TestCase):
         result = self.call("hook", data=json.dumps(hook))
         self.assertEqual(result.stdout, "{}\n")
         self.assertEqual(self.status()["state"]["phase"], "working")
-        for path in self.directory.iterdir():
-            if path.is_file():
-                self.assertNotIn(secret.encode(), path.read_bytes())
+        self.assert_private_state_excludes(secret.encode())
         self.call("stop")
         self.process.wait(timeout=5)
         result = self.call("hook", data=json.dumps(hook))
@@ -230,9 +240,7 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(status["evidence"]["output"], 1)
         self.assertFalse(status["release_ready"])
         self.assertEqual(post(b"\x0a\xff", "application/x-protobuf")[0], 400)
-        for path in self.directory.iterdir():
-            if path.is_file():
-                self.assertNotIn(b"SECRET_", path.read_bytes())
+        self.assert_private_state_excludes(b"SECRET_")
 
 
 if __name__ == "__main__":
