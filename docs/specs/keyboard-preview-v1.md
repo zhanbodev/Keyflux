@@ -20,7 +20,7 @@ Layouts live in `assets/keyboard-layouts/<model-id>.json`. The React registry im
 - Housing coordinates use any consistent unit; all values must be finite. Width ≤ 50, height ≤ 20; positive rectangle sizes, nonnegative positions, all rectangles inside the housing.
 - 1–128 keys, at most eight light shapes. IDs are unique within each collection. Key rectangles must not overlap.
 - `kind`: `key` or `knob`; `label` may contain newlines and is at most 16 characters. Optional `symbol` is a stable semantic icon key, replacing the text legend. Existing SF Symbol-style names remain compatible; the React renderer maps known keys to reviewed static icons. New icon keys require a compiled registry change.
-- `lights[].zone` is currently only `side`. Both strips share the state-specific side signal. Separate left/right configuration is not implemented.
+- `lights[].zone` is currently only `side`. All supplied strip apertures share the state-specific side signal. Separate left/right configuration is not implemented.
 - `preview_only:true` identifies a layout example, not a supported device. Air75 V3 is explicitly an approximation/example; Kick75 key geometry comes from the user-supplied NuPhy IO DOM.
 - Optional `note` records scope/provenance; optional `source_sha256` identifies the source fragment without publishing user paths or the original page.
 - Files are UTF-8 JSON. Maximum file size is 128 KiB. No URLs, HID commands, LED indices, scripts or stylesheets are accepted.
@@ -44,4 +44,6 @@ The importer reads `myKeyBoardBac` dimensions and `boxBacOut` rectangles/legends
 
 The fragment references external shell images and CSS masks and does not describe the actual side strips. The Tauri App uses the original static shell, segmented key masks and known sprite symbols from a hash-verified local reference cache. No third-party website scripts execute. Side-strip placement remains illustrative; font rendering may differ from the original website. See [desktop assets and provenance](../DESKTOP.md). These limits are recorded rather than treating an HTML screen position as verified firmware topology. Contribute a more accurate screen shape with model-specific evidence; per-key hardware mapping requires separate protocol evidence.
 
-The keyboard preview stays above the editor while the settings below scroll. Selecting a state or editing RGB/brightness updates it immediately. Main and side signals are rendered separately; following the core's phase is optional. Saving, importing/exporting and changing preview models never writes real HID.
+The keyboard preview and white console share a fixed viewport grid; preview size adapts to the available height, without sticky layers or page scrolling. Selecting a state or editing RGB/brightness updates it immediately. Main and side signals are rendered separately; following the core's phase is optional. Saving, importing/exporting and changing preview models never writes real HID.
+
+DOM imports now leave `lights: []` when the fragment supplies no strip geometry. Do not fabricate outer bars; add model-specific aperture geometry only with a reference. The UI label is “条形灯”; the versioned JSON zone remains `side` for compatibility.

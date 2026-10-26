@@ -349,12 +349,19 @@ fn run(init: std.process.Init) !void {
     var directory: ?[:0]const u8 = null;
     var simulate = false;
     var port: u16 = 0;
+    var expected_device: ?[]const u8 = null;
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
         if (eq(args[i], "--state-dir")) {
             i += 1;
             if (i == args.len) return error.MissingArgument;
             directory = args[i];
+        } else if (eq(args[i], "--expect-device")) {
+            i += 1;
+            if (i == args.len) return error.MissingArgument;
+            if (args[i].len != 64) return error.InvalidDeviceIdentity;
+            for (args[i]) |c| if (!std.ascii.isHex(c)) return error.InvalidDeviceIdentity;
+            expected_device = args[i];
         } else if (eq(args[i], "--simulate")) simulate = true else if (eq(args[i], "--otlp-port")) {
             i += 1;
             if (i == args.len) return error.MissingArgument;
@@ -396,9 +403,10 @@ fn run(init: std.process.Init) !void {
             if (light.?.brightness > 100) return error.InvalidBrightness;
         } else if (positional.items.len != 1) return error.UnexpectedArgument;
         if (p.kf_init(null) != 0) return error.StateDirectoryUnavailable;
-        try hardware(a, light, eq(command, "hardware-verify-restore"));
+        try hardware(a, light, eq(command, "hardware-verify-restore"), expected_device);
         return;
     }
+    if (expected_device != null) return error.UnexpectedArgument;
     if (std.mem.startsWith(u8, command, "validate-")) {
         const bytes = try input(init, file);
         if (eq(command, "validate-event")) {
@@ -473,11 +481,14 @@ fn run(init: std.process.Init) !void {
     p.kf_print(response.ptr, response.len, 0);
     try checkResponse(a, response);
 }
-fn hardware(a: Allocator, light: ?devices.Lighting, roundtrip: bool) !void {
+fn hardware(a: Allocator, light: ?devices.Lighting, roundtrip: bool, expected_device: ?[]const u8) !void {
     var keyboard: kick75.Keyboard = .{};
     try keyboard.connect();
     defer keyboard.close(); // Holds the per-user hardware lock throughout journal IO.
     try kick75.writable(keyboard.info);
+    if (expected_device) |expected| {
+        if (!std.mem.eql(u8, expected, &keyboard.info.fingerprint)) return error.DeviceChanged;
+    }
     var journal: kick75.Journal = if (try readState(a, "kick75-recovery.json", 16384)) |bytes|
         (try std.json.parseFromSlice(kick75.Journal, a, bytes, .{})).value
     else blk: {

@@ -27,10 +27,15 @@ impl Core {
         }
     }
     fn command(&self, args: &[&str]) -> Command {
+        self.make_command(args, true)
+    }
+    fn make_command(&self, args: &[&str], scoped: bool) -> Command {
         let mut cmd = Command::new(&self.binary);
         cmd.args(args);
-        if let Some(dir) = &self.directory {
-            cmd.arg("--state-dir").arg(dir);
+        if scoped {
+            if let Some(dir) = &self.directory {
+                cmd.arg("--state-dir").arg(dir);
+            }
         }
         #[cfg(windows)]
         {
@@ -59,6 +64,49 @@ impl Core {
         } else {
             vec![op]
         };
+        self.execute(&args, input, true)
+    }
+    pub fn probe_device(&self) -> Result<Value, String> {
+        self.execute(&["hardware-probe"], None, false)
+    }
+    pub fn apply_device(&self, signal: &Value, identity: &str) -> Result<Value, String> {
+        let object = signal.as_object().ok_or("InvalidSignal")?;
+        let color = object
+            .get("color")
+            .and_then(Value::as_str)
+            .ok_or("InvalidSignal")?;
+        let brightness = object
+            .get("brightness")
+            .and_then(Value::as_u64)
+            .ok_or("InvalidSignal")?;
+        if object.len() != 2
+            || color.len() != 7
+            || !color.starts_with('#')
+            || !color.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit)
+            || brightness > 100
+        {
+            return Err("InvalidSignal".into());
+        }
+        self.execute(
+            &[
+                "hardware-solid",
+                color,
+                &brightness.to_string(),
+                "--expect-device",
+                identity,
+            ],
+            None,
+            false,
+        )
+    }
+    pub fn restore_device(&self, identity: &str) -> Result<Value, String> {
+        self.execute(
+            &["hardware-restore", "--expect-device", identity],
+            None,
+            false,
+        )
+    }
+    fn execute(&self, args: &[&str], input: Option<&Value>, scoped: bool) -> Result<Value, String> {
         let bytes = input
             .map(serde_json::to_vec)
             .transpose()
@@ -67,7 +115,7 @@ impl Core {
             return Err("PayloadTooLarge".into());
         }
         let mut child = self
-            .command(&args)
+            .make_command(args, scoped)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -122,7 +170,10 @@ impl Core {
     }
     pub fn ensure(&self) -> Result<(), String> {
         let _gate = self.gate.lock().map_err(|_| "CoreLockFailed")?;
-        if self.call("status", None).is_ok() {
+        if let Ok(value) = self.call("status", None) {
+            if !self.simulated && value["result"]["backend"] == "simulated" {
+                return Err("SimulationNotAllowed".into());
+            }
             return Ok(());
         }
         let mut owner = self.child.lock().map_err(|_| "CoreLockFailed")?;
@@ -199,6 +250,20 @@ pub fn bundled_binary(exe: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn hardware_signal_rejects_untrusted_fields_before_launch() {
+        let core = Core::new(PathBuf::from("not-executed"), None, false);
+        for signal in [
+            json!({"color":"#ff00ff;sh","brightness":10}),
+            json!({"color":"#FFFFFF","brightness":101}),
+            json!({"color":"#FFFFFF","brightness":10,"zone":"side"}),
+        ] {
+            assert_eq!(
+                core.apply_device(&signal, "identity").unwrap_err(),
+                "InvalidSignal"
+            );
+        }
+    }
     #[test]
     fn command_surface_rejects_hardware_and_arbitrary_paths() {
         let core = Core::new(PathBuf::from("not-executed"), None, false);

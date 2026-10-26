@@ -8,7 +8,7 @@
 
 A local AI status lighting companion, built around a Zig core for macOS and Windows. Keyflux maps agent activity to keyboard lighting, with separate extension points for keyboards, AI integrations, and visual effects.
 
-**Current stage: v0.1 internal validation. Manual Kick75 IO main-light tests work on macOS / USB / firmware 4.0.18.6 / Mac keyboard profile.** Static colors, exact configuration readback and original-effect restoration passed physical testing. The AI/UI backend remains read-only or simulated; real Codex desktop reasoning/output detection, write persistence and the full device lifecycle are still unverified.
+**Current stage: v0.1 internal validation. Manual Kick75 IO main-light tests work on macOS / USB / firmware 4.0.18.6 / Mac keyboard profile.** Static colors, exact configuration readback and original-effect restoration passed physical testing. Automatic AI-driven HID writes remain gated; the desktop App now offers verified manual USB main-light control on macOS; real Codex desktop reasoning/output detection, write persistence and the full device lifecycle are still unverified.
 
 ## What works today
 
@@ -86,32 +86,28 @@ The firmware quantizes RGB; the CLI reports the requested color and `color_quant
 
 ```sh
 npm --prefix desktop ci
-./scripts/dev-macos.sh --demo
+./scripts/dev-macos.sh
 # Cross-platform equivalent, including Windows:
-node desktop/scripts/dev.mjs --demo
+node desktop/scripts/dev.mjs
 ```
 
-The launcher builds the Zig sidecar, verifies/downloads local reference assets and opens the React settings app with hot reload. Its **simulated** core uses an isolated temporary directory printed in the terminal; it leaves installed/legacy app instances alone. `--demo` produces synthetic agent events, not a Codex connection or physical-light test. Reference assets are downloaded once and verified by SHA-256; subsequent launches can run offline.
+The launcher builds the Zig sidecar and opens a **real read-only core** in an isolated development directory. The App attempts a read-only USB connection and displays the actual connection result; it never substitutes a simulated device. Click **Connect keyboard** to retry after plugging in USB. Missing hardware leaves the editor available.
 
-Closing settings destroys its WebView while the tray and Zig core remain. Reopen through the tray. Quit the tray app or press Ctrl+C to end the supervised development session. Saved development themes persist in the isolated directory.
+The top keyboard has no card background, floating/sticky layer or selectable keys. The white console fits the supported window sizes without page scrolling, with vertical **Main / Light bar** navigation, a compact state list and a custom saturation/value + hue + RGB picker. Menus are app-drawn. Light color follows the original key-outline masks rather than filling the key faces. The old artificial outer gray strips are removed; the optional small right light-bar aperture is a screen illustration only.
 
-```sh
-./scripts/dev-macos.sh --no-ui --demo   # Only simulated core and events
-./scripts/dev-macos.sh --no-build       # Skip Zig rebuild; UI still gets hot reload
-./scripts/dev-macos.sh --check          # React, Rust↔Zig, core and layout checks
-./scripts/dev-macos.sh --state-dir /private/tmp/keyflux-custom
-```
-
-Edit colors through the picker, HEX, brightness and presets; select main keys or side strips in the preview. Side palettes can follow the main colors or be independent. Import v1/v2, save explicit [Theme v2](docs/specs/theme-v2.md), undo changes and export through native file dialogs. Screen edits and side-strip settings do not enable physical HID writes. Follow-core mode renders only observed phases; sample selection never emits agent events.
+On the verified USB Kick75 / macOS / Mac profile / firmware 4.0.18.6 combination, **Apply to keyboard** uses the existing Zig capture, strict readback and restoration path. **Restore effect** restores the captured main configuration; disconnect or normal App Quit restores main lighting owned by this App. Connecting or saving a theme does not change physical colors. Unexpected devices/firmware remain read-only; Windows manual writes remain disabled. Light-bar settings are preview/configuration only. Following agent state currently changes the preview, not real HID.
 
 ```sh
+./scripts/dev-macos.sh --no-build       # Reuse the built Zig sidecar
+./scripts/dev-macos.sh --no-ui          # Real read-only core, no window
+./scripts/dev-macos.sh --no-ui --demo   # Explicit synthetic CLI debugging only
+./scripts/dev-macos.sh --check          # Software tests; no physical HID writes
 sh scripts/package-macos.sh            # Local release .app
-sh scripts/package-macos.sh --debug    # Debug .app
 ```
 
-Bundles are under `desktop/src-tauri/target/{release,debug}/bundle/macos/Keyflux.app` and include the Zig sidecar and license notices. Local signatures are not Developer ID signatures or Apple notarization. Production startup attaches to an existing core or starts a read-only one using the default data directory. Explicit Quit stops only a core started by that app; attached cores are left running. Closing settings keeps either core running.
+Close settings to keep the tray/core and any explicitly applied main color running; reopen from the tray. Quit the App or press Ctrl+C to end the supervised session. Recovery journals remain durable after a forced termination; reconnect the same keyboard/port and use **Restore effect**. Bundles live under `desktop/src-tauri/target/{debug,release}/bundle/macos/Keyflux.app`, with a local ad-hoc signature, without Apple notarization.
 
-[Desktop architecture and development](docs/DESKTOP.md) covers the bridge, lifecycle, Windows commands and testing. The old `macos/` SwiftUI implementation is retained as a historical reference and is no longer the default launcher or CI target. NuPhy artwork is an ignored local development cache, **not MIT-licensed content or a cleared redistribution asset**; [provenance and packaging boundary](THIRD_PARTY_NOTICES.md#nuphy-io-preview-artwork) apply before public binary distribution.
+See [desktop development and command boundaries](docs/DESKTOP.md). The historical SwiftUI implementation in `macos/` is no longer the default UI. NuPhy artwork is a hash-verified, Git-ignored local cache, **not MIT content or cleared public distribution artwork**; see [third-party notices](THIRD_PARTY_NOTICES.md#nuphy-io-preview-artwork).
 
 ### Windows core
 

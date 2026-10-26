@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod core;
+mod device;
+mod tray;
 use core::Core;
 use serde_json::Value;
 use std::{fs, io::Read, path::PathBuf, sync::Arc};
@@ -11,6 +13,7 @@ use tauri::{
 use tauri_plugin_dialog::DialogExt;
 
 type Shared = Arc<Core>;
+type SharedDevice = Arc<device::Device>;
 type Reply = Result<Value, String>;
 
 async fn blocking<T: Send + 'static>(
@@ -56,16 +59,43 @@ async fn save_theme(core: State<'_, Shared>, theme: Value) -> Reply {
     .await
 }
 #[tauri::command]
-async fn preview_main(core: State<'_, Shared>, signal: Value) -> Reply {
+async fn get_device(core: State<'_, Shared>, device: State<'_, SharedDevice>) -> Reply {
     let core = core.inner().clone();
+    let device = device.inner().clone();
+    blocking(move || device.status(&core)).await
+}
+#[tauri::command]
+async fn connect_device(core: State<'_, Shared>, device: State<'_, SharedDevice>) -> Reply {
+    let core = core.inner().clone();
+    let device = device.inner().clone();
     blocking(move || {
         core.ensure()?;
-        if core.call("status", None)?["result"]["backend"] != "simulated" {
-            return Err("SimulationRequired".into());
-        }
-        core.call("preview", Some(&signal))
+        device.connect(&core)
     })
     .await
+}
+#[tauri::command]
+async fn disconnect_device(core: State<'_, Shared>, device: State<'_, SharedDevice>) -> Reply {
+    let core = core.inner().clone();
+    let device = device.inner().clone();
+    blocking(move || device.disconnect(&core)).await
+}
+#[tauri::command]
+async fn restore_device(core: State<'_, Shared>, device: State<'_, SharedDevice>) -> Reply {
+    let core = core.inner().clone();
+    let device = device.inner().clone();
+    blocking(move || device.restore(&core)).await
+}
+#[tauri::command]
+async fn apply_main(
+    core: State<'_, Shared>,
+    device: State<'_, SharedDevice>,
+    signal: Value,
+    model: String,
+) -> Reply {
+    let core = core.inner().clone();
+    let device = device.inner().clone();
+    blocking(move || device.apply(&core, &model, &signal)).await
 }
 #[tauri::command]
 async fn import_theme(
@@ -130,7 +160,7 @@ fn show_settings(app: &tauri::AppHandle) {
     } else {
         let _ = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("index.html".into()))
             .title("Keyflux")
-            .inner_size(1120.0, 880.0)
+            .inner_size(1120.0, 780.0)
             .min_inner_size(900.0, 680.0)
             .build();
     }
@@ -149,14 +179,21 @@ fn main() {
         std::env::var_os("KEYFLUX_SIMULATE").is_some(),
     ));
     let exit_core = service.clone();
+    let keyboard = Arc::new(device::Device::default());
+    let exit_keyboard = keyboard.clone();
     tauri::Builder::default()
         .manage(service)
+        .manage(keyboard)
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             get_status,
             get_theme,
             save_theme,
-            preview_main,
+            get_device,
+            connect_device,
+            disconnect_device,
+            restore_device,
+            apply_main,
             import_theme,
             export_theme
         ])
@@ -164,20 +201,9 @@ fn main() {
             let settings = MenuItem::with_id(app, "settings", "设置…", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出 Keyflux", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&settings, &quit])?;
-            let rgba: Vec<u8> = (0..22 * 22)
-                .flat_map(|i| {
-                    let x = i % 22;
-                    let y = i / 22;
-                    if (4..18).contains(&x) && ((y == 5 || y == 16) || (x == 4 || x == 17)) {
-                        [30, 32, 35, 255]
-                    } else {
-                        [0, 0, 0, 0]
-                    }
-                })
-                .collect();
             TrayIconBuilder::new()
-                .icon(tauri::image::Image::new_owned(rgba, 22, 22))
-                .icon_as_template(true)
+                .icon(tray::icon())
+                .icon_as_template(false)
                 .tooltip("Keyflux — AI 状态灯")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
@@ -194,7 +220,10 @@ fn main() {
             tauri::RunEvent::ExitRequested {
                 code: None, api, ..
             } => api.prevent_exit(),
-            tauri::RunEvent::Exit => exit_core.stop_owned(),
+            tauri::RunEvent::Exit => {
+                let _ = exit_keyboard.shutdown(&exit_core);
+                exit_core.stop_owned();
+            }
             _ => {}
         });
 }

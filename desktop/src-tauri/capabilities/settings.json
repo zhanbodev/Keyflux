@@ -1,14 +1,18 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "settings",
-  "description": "Local settings may invoke only the six reviewed desktop commands.",
+  "description": "Local settings, theme editing and explicit verified-device control only.",
   "windows": ["settings"],
   "permissions": [
     "allow-get-status",
     "allow-get-theme",
     "allow-save-theme",
-    "allow-preview-main",
     "allow-import-theme",
-    "allow-export-theme"
+    "allow-export-theme",
+    "allow-get-device",
+    "allow-connect-device",
+    "allow-disconnect-device",
+    "allow-restore-device",
+    "allow-apply-main"
   ]
 }

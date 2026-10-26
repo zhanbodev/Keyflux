@@ -1,14 +1,9 @@
 :root {
   color-scheme: light;
-  --accent: #2274e7;
+  --accent: #327be8;
 }
 html {
-  min-width: 680px;
-}
-button,
-input,
-select {
-  -webkit-tap-highlight-color: transparent;
+  min-width: 880px;
 }
 ::selection {
   background: #dceaff;

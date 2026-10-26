@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-27",
+  "scope": "Compact console and real USB desktop connection",
+  "software": {
+    "theme_and_color_tests": 16,
+    "rust_tests": 7,
+    "zig_tests": 32,
+    "ipc_integration_tests": 10,
+    "layout_contract_tests": 3,
+    "playwright_tests": 5,
+    "small_viewports": [
+      [
+        900,
+        650
+      ],
+      [
+        1120,
+        750
+      ],
+      [
+        1280,
+        850
+      ]
+    ],
+    "default_launcher_backend": "read-only",
+    "typescript_vite": "passed",
+    "cargo_clippy": "passed",
+    "windows_zig_cross_compile": "passed"
+  },
+  "hardware": {
+    "platform": "macos",
+    "architecture": "aarch64",
+    "model": "Kick75 NuPhyIO",
+    "firmware": "4.0.18.6",
+    "connection": "USB",
+    "profile": "Mac",
+    "bridge": "Tauri device session -> fixed Zig CLI",
+    "probe_during_test": "passed",
+    "wrong_identity_rejected_before_write": true,
+    "solid_color": "#18C7AA",
+    "brightness": 15,
+    "independent_readback": "passed",
+    "original_restoration": "exact 17-byte match asserted inside the Rust bridge hardware test",
+    "side_unchanged": true,
+    "optical_confirmation": "Not newly performed; this test verifies actual configuration readback and restoration.",
+    "late_additional_probe": "DeviceNotFound; no further mutation attempted"
+  },
+  "limits": [
+    "OS console was locked during final native visual capture; black screenshots were not accepted as UI validation. Browser screenshots and interaction tests passed.",
+    "Strip aperture is screen geometry only; physical strip writes remain disabled.",
+    "Windows desktop hardware writes remain disabled.",
+    "Automatic AI-to-HID control and real Codex reasoning/output coverage remain gated.",
+    "Native menu-bar icon and final window appearance should be inspected after unlocking."
+  ]
+}

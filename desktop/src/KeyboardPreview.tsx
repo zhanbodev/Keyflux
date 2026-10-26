@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import kick from '../../assets/keyboard-layouts/nuphy-kick75-io.json';
 import air from '../../assets/keyboard-layouts/nuphy-air75-v3.json';
-import { tint, type Signal } from './theme';
+import type { Signal } from './theme';
 export const layouts = [kick, air];
 type Key = (typeof kick.keys)[number];
 const icons: Record<string, string> = {
@@ -19,15 +19,11 @@ const icons: Record<string, string> = {
 export function KeyboardPreview({
   model,
   main,
-  side,
-  zone,
-  onZone,
+  strip,
 }: {
   model: string;
   main: Signal | null;
-  side: Signal | null;
-  zone: string;
-  onZone: (zone: 'main' | 'side') => void;
+  strip: Signal | null;
 }) {
   const layout = layouts.find((l) => l.id === model) ?? kick;
   const reference = layout.id === kick.id;
@@ -40,69 +36,70 @@ export function KeyboardPreview({
   return (
     <div
       className={`keyboard ${reference ? 'reference' : 'example'}`}
+      role="img"
+      aria-label={`${layout.name} 灯光预览`}
+      onDragStart={(event) => event.preventDefault()}
       style={
         {
-          aspectRatio: `${layout.width}/${layout.height}`,
+          '--board-ratio': layout.width / layout.height,
           '--key-unit': `${100 / layout.width}cqw`,
+          '--light-color': main && main.brightness > 0 ? main.color : '#55575a',
+          '--light-opacity': main ? 0.35 + (0.65 * main.brightness) / 100 : 1,
         } as CSSProperties
       }
-      aria-label={`${layout.name} 配色预览`}
     >
       {reference && <img className="housing" src="/reference/case.webp" alt="" draggable={false} />}
       {layout.keys.map((raw) => {
         const key = raw as Key;
         const symbol = key.symbol && icons[key.symbol];
         return (
-          <button
-            key={key.id}
-            type="button"
-            className={`key ${key.kind}`}
-            style={rect(key)}
-            aria-label={`${key.label || key.symbol || '旋钮'}，编辑主键区颜色`}
-            onClick={() => onZone('main')}
-          >
+          <div className={`key ${key.kind}`} key={key.id} style={rect(key)} aria-hidden="true">
             {key.kind === 'knob' ? (
               reference ? (
-                <img className="knob-image" src="/reference/knob.webp" alt="" />
+                <img className="knob-image" draggable={false} src="/reference/knob.webp" alt="" />
               ) : (
                 <span className="example-knob" />
               )
             ) : (
               <>
-                <span className="key-tint" style={{ backgroundColor: tint(main) }} />
                 {reference && (
                   <span className="key-wireframe">
-                    <img src="/reference/key-left.svg" alt="" />
-                    <img src="/reference/key-middle.svg" alt="" />
-                    <img src="/reference/key-right.svg" alt="" />
+                    {['left', 'middle', 'right'].map((part) => (
+                      <i
+                        key={part}
+                        style={{
+                          maskImage: `url(/reference/key-${part}.svg)`,
+                          WebkitMaskImage: `url(/reference/key-${part}.svg)`,
+                        }}
+                      />
+                    ))}
                   </span>
                 )}
                 <span className="legend">
                   {reference && symbol ? (
-                    <img src={`/reference/${symbol}.svg`} alt="" />
+                    <img draggable={false} src={`/reference/${symbol}.svg`} alt="" />
                   ) : (
                     key.label
                   )}
                 </span>
               </>
             )}
-          </button>
+          </div>
         );
       })}
-      {layout.lights.map((light) => (
-        <button
-          key={light.id}
-          type="button"
-          className={`side-strip ${zone === 'side' ? 'selected' : ''}`}
-          style={{
-            ...rect(light),
-            backgroundColor: side ? side.color : '#bec3c7',
-            opacity: side ? 0.25 + (side.brightness / 100) * 0.75 : 0.35,
-          }}
-          onClick={() => onZone('side')}
-          aria-label={`编辑${light.id === 'left' ? '左' : '右'}侧灯条颜色`}
-        />
-      ))}
+      {strip &&
+        strip.brightness > 0 &&
+        layout.lights.map((light) => (
+          <span
+            key={light.id}
+            className="strip-aperture"
+            style={{
+              ...rect(light),
+              backgroundColor: strip.color,
+              opacity: strip.brightness / 100,
+            }}
+          />
+        ))}
     </div>
   );
 }

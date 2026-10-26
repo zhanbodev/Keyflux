@@ -8,7 +8,7 @@
 
 本地 AI 状态灯伴侣，使用面向 macOS / Windows 的 Zig 核心，将 Agent 活动映射为键盘灯光，并为键盘、AI 接入和灯效提供独立扩展入口。
 
-**当前阶段：v0.1 内部验证，已支持 macOS / USB / 固件 4.0.18.6 / Mac 档的 Kick75 IO 手动主灯测试。** 常亮变色、精确配置回读和原灯效恢复已通过实机验证。AI／界面后端仍使用只读或模拟设备；真实 Codex 桌面阶段、写入持久化与完整设备生命周期仍待验证。
+**当前阶段：v0.1 内部验证，已支持 macOS / USB / 固件 4.0.18.6 / Mac 档的 Kick75 IO 手动主灯测试。** 常亮变色、精确配置回读和原灯效恢复已通过实机验证。自动 AI 灯控仍未放行；桌面 App 现支持 macOS 下经验证的手动 USB 主灯控制；真实 Codex 桌面阶段、写入持久化与完整设备生命周期仍待验证。
 
 ## 当前能力
 
@@ -86,32 +86,28 @@ zig build test
 
 ```sh
 npm --prefix desktop ci
-./scripts/dev-macos.sh --demo
+./scripts/dev-macos.sh
 # Windows 也可使用的跨平台入口：
-node desktop/scripts/dev.mjs --demo
+node desktop/scripts/dev.mjs
 ```
 
-脚本构建 Zig sidecar，下载／校验本地参考素材，并打开支持热更新的 React 界面。**模拟核心**使用独立临时目录，路径打印在终端；不会影响已安装或旧版开发实例。`--demo` 产生合成事件，不代表真实 Codex 或实体灯控。参考素材首次下载后通过 SHA-256 校验，缓存完整时可离线启动。
+脚本在独立开发目录启动**真实只读核心**，打开 App 后尝试只读连接 USB，并显示实际连接结果，不再用模拟设备代替。未接键盘时仍可编辑配色；接入后点击“连接键盘”重试。
 
-关闭设置窗口会销毁 WebView，托盘和 Zig 核心继续运行；从托盘重新打开。退出托盘应用或在启动终端按 Ctrl+C 会结束本次受监督的开发会话。已保存的开发配色保留在独立目录。
+键盘区无卡片背景、不悬浮、不允许选区或选键。下方白色控制台在支持的窗口尺寸内一屏显示，左侧纵向切换“主键区／条形灯”，状态列表去除 HEX，右侧使用自绘饱和度/明度、色相条、RGB、预设和最近颜色。下拉菜单由 App 绘制。主灯呈现为彩色键帽轮廓而非整键填色；两侧虚构灰条已删除，仅在启用条形灯预览时显示右侧小开口示意。
 
-```sh
-./scripts/dev-macos.sh --no-ui --demo   # 仅模拟核心与演示事件
-./scripts/dev-macos.sh --no-build       # 跳过 Zig 重编译，界面仍支持热更新
-./scripts/dev-macos.sh --check          # React、Rust↔Zig、核心与布局检查
-./scripts/dev-macos.sh --state-dir /private/tmp/keyflux-custom
-```
-
-点击主键区或侧灯条选择灯区，编辑取色器、HEX、亮度与预设；侧灯可跟随主键区或独立配色。支持导入 v1/v2、保存明确版本的 [Theme v2](docs/specs/theme-v2.md)、撤销和原生对话框导出。屏幕配色与侧灯配置不会开启实体 HID 写入。跟随核心仅显示已观测阶段；选择预览状态不发送 AI 事件。
+已验证的 USB Kick75／macOS／Mac 档／4.0.18.6 可点击“应用到键盘”，通过现有 Zig 驱动捕获原态、严格回读；“恢复灯效”恢复原主灯配置。断开或正常退出会恢复由该 App 接管的主灯。连接、编辑或保存主题均不自动写入实体颜色。未知固件与 Windows 保持只读；条形灯仍仅配置和屏幕预览。“跟随状态”目前驱动预览，不会自动写入 HID。
 
 ```sh
+./scripts/dev-macos.sh --no-build       # 复用已构建的 Zig sidecar
+./scripts/dev-macos.sh --no-ui          # 真实只读核心，不打开界面
+./scripts/dev-macos.sh --no-ui --demo   # 显式合成事件，仅 CLI 调试
+./scripts/dev-macos.sh --check          # 软件检查，不写实体 HID
 sh scripts/package-macos.sh            # 本地 release .app
-sh scripts/package-macos.sh --debug    # Debug .app
 ```
 
-产物位于 `desktop/src-tauri/target/{release,debug}/bundle/macos/Keyflux.app`，包含 Zig sidecar 与许可声明。本地签名不等于 Developer ID 签名或 Apple 公证。正式启动连接已有核心或在默认数据目录启动只读核心；显式退出只停止由该 App 启动的核心，外部核心保持运行。仅关闭设置窗口不会停止核心。
+关闭设置窗口保留托盘、核心及手动应用的主灯颜色；从托盘重新打开。退出 App 或在启动终端按 Ctrl+C 结束受监督的开发会话。强制终止后保留恢复日志，接回原键盘及 USB 端口后点击“恢复灯效”。产物位于 `desktop/src-tauri/target/{debug,release}/bundle/macos/Keyflux.app`，使用本地 ad-hoc 签名，未 Apple 公证。
 
-[桌面架构与开发说明](docs/DESKTOP.md)记录桥接、生命周期、Windows 命令及测试。旧 `macos/` SwiftUI 实现保留为历史参考，不再是默认启动／CI 目标。NuPhy 美术资源仅存于被 Git 忽略的本地开发缓存，**不属于 MIT 内容，也未完成公开二进制分发授权**；发布前遵循[素材来源与打包边界](THIRD_PARTY_NOTICES.md#nuphy-io-preview-artwork)。
+[桌面开发与命令边界](docs/DESKTOP.md)提供详细说明。旧 `macos/` SwiftUI 仅保留为历史参考。NuPhy 美术为经哈希校验且不入 Git 的本地缓存，**不属于 MIT 内容，也未完成公开分发授权**，见[第三方声明](THIRD_PARTY_NOTICES.md#nuphy-io-preview-artwork)。
 
 ### Windows 核心
 

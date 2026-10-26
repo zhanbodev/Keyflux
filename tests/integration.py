@@ -99,6 +99,9 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(self.status()["backend"], "simulated")
 
     def test_hardware_commands_reject_isolated_state_before_device_access(self):
+        for identity in ["too-short", "G" * 64]:
+            result = self.call("hardware-solid", "#06B6D4", "15", "--expect-device", identity, check=False)
+            self.assertEqual(json.loads(result.stdout)["code"], "InvalidDeviceIdentity")
         for args in [("hardware-solid", "#06B6D4", "15"), ("hardware-restore",), ("hardware-verify-restore",)]:
             result = self.call(*args, check=False)
             self.assertEqual(result.returncode, 1)

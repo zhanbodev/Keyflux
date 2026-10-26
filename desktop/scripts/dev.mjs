@@ -11,6 +11,8 @@ const help = `Usage: ./scripts/dev-macos.sh [--demo] [--no-ui] [--no-build] [--c
 Tauri 2 + React/TypeScript; requires Node 24+, Rust stable, Zig 0.17.0 and platform SDK.
 --demo cycles synthetic agent events. No real keyboard writes or Codex connection.
 --check builds and tests without opening a window. --no-build skips Zig rebuilding.
+Normal startup uses the real read-only core; connect USB from the App.
+--demo is available only with --no-ui for synthetic CLI debugging.
 State is isolated from installed apps. Close settings to keep tray/core running;
 quit the tray app or press Ctrl+C to end this supervised development session.`;
 let demo = false,
@@ -47,6 +49,10 @@ for (let i = 0; i < args.length; i++) {
       throw new Error(`Unknown option ${args[i]}\n${help}`);
   }
 }
+if (demo && !noUI && !check)
+  throw new Error(
+    'Use --demo with --no-ui only. Start the App without --demo to connect a real keyboard.',
+  );
 function run(command, argv, options = {}) {
   return execFileSync(command, argv, { cwd: root, stdio: 'inherit', ...options });
 }
@@ -94,7 +100,7 @@ try {
     );
 }
 if (!noUI) run(process.execPath, [resolve(desktop, 'scripts/reference-assets.mjs')]);
-const core = spawn(binary, ['serve', '--simulate', '--state-dir', directory], {
+const core = spawn(binary, ['serve', ...(demo ? ['--simulate'] : []), '--state-dir', directory], {
   stdio: ['ignore', 'pipe', 'inherit'],
 });
 let ui,
@@ -141,17 +147,20 @@ for (let i = 0; i < 50; i++) {
   try {
     if (!ready || core.exitCode !== null) throw new Error('Not ready');
     const result = JSON.parse(cli('status'));
-    if (result.result.backend !== 'simulated') throw new Error('Unexpected core mode');
+    if (result.result.backend !== (demo ? 'simulated' : 'read-only'))
+      throw new Error('Unexpected core mode');
     owned = true;
     break;
   } catch {}
   await new Promise((r) => setTimeout(r, 100));
 }
 if (!owned) {
-  console.error('Simulated core startup failed.');
+  console.error('Core startup failed.');
   await cleanup(1);
 }
-console.log(`Isolated state: ${directory}\nSimulated lighting only. Ctrl+C to stop.`);
+console.log(
+  `Isolated state: ${directory}\n${demo ? 'Synthetic CLI events only.' : 'Read-only core. Connect a USB keyboard from the App.'} Ctrl+C to stop.`,
+);
 if (demo) {
   const kinds = [
     'turn_started',
@@ -194,15 +203,12 @@ if (demo) {
   emit();
 }
 if (!noUI) {
+  const uiEnvironment = { ...process.env, KEYFLUX_CORE: binary, KEYFLUX_STATE_DIR: directory };
+  delete uiEnvironment.KEYFLUX_SIMULATE;
   ui = spawn(process.execPath, [resolve(desktop, 'node_modules/@tauri-apps/cli/tauri.js'), 'dev'], {
     cwd: desktop,
     stdio: 'inherit',
-    env: {
-      ...process.env,
-      KEYFLUX_CORE: binary,
-      KEYFLUX_SIMULATE: '1',
-      KEYFLUX_STATE_DIR: directory,
-    },
+    env: uiEnvironment,
   });
   ui.on('error', (e) => {
     console.error(e.message);

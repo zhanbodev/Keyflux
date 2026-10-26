@@ -748,22 +748,14 @@
   ],
   "lights": [
     {
-      "id": "left",
+      "id": "strip",
       "zone": "side",
-      "x": 0.19,
-      "y": 2.25,
-      "w": 0.14,
-      "h": 3.7
-    },
-    {
-      "id": "right",
-      "zone": "side",
-      "x": 17.948988,
-      "y": 2.25,
-      "w": 0.14,
-      "h": 3.7
+      "x": 17.593526,
+      "y": 5.244926,
+      "w": 0.073116,
+      "h": 0.637681
     }
   ],
-  "note": "Key rectangles/legends extracted from user-provided NuPhy IO DOM. Side-strip positions are illustrative: the fragment does not describe them. No firmware LED mapping or remote artwork.",
+  "note": "Key rectangles and legends from supplied NuPhy IO DOM. Small right strip aperture is a screen illustration aligned to the user reference image, not an HID LED map. No artificial outer side bars.",
   "source_sha256": "36663d723a21f28d8678e4167739a536fdb41d83cdee40b5866cb69f673eca03"
 }

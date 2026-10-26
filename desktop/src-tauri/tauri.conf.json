@@ -15,7 +15,7 @@
         "label": "settings",
         "title": "Keyflux",
         "width": 1120,
-        "height": 880,
+        "height": 780,
         "minWidth": 900,
         "minHeight": 680
       }
@@ -34,7 +34,10 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "macOS": { "minimumSystemVersion": "13.0", "signingIdentity": "-" },
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "signingIdentity": "-"
+    },
     "externalBin": ["binaries/keyflux"],
     "resources": [
       "../../LICENSE",

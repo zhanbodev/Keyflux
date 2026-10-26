@@ -95,8 +95,8 @@ def extract(source, model, name):
     return {
         "schema_version": 1, "id": model, "name": name, "preview_only": not (Path(__file__).resolve().parents[1] / "models" / (model + ".json")).is_file(),
         "width": width, "height": height, "keys": keys,
-        "lights": [{"id": "left", "zone": "side", "x": .19, "y": 2.25, "w": .14, "h": 3.7}, {"id": "right", "zone": "side", "x": round(width-.33, 6), "y": 2.25, "w": .14, "h": 3.7}],
-        "note": "Key rectangles/legends extracted from user-provided NuPhy IO DOM. Side-strip positions are illustrative: the fragment does not describe them. No firmware LED mapping or remote artwork.",
+        "lights": [],
+        "note": "Key rectangles/legends extracted from user-provided NuPhy IO DOM. Strip geometry is omitted: the fragment does not describe it. No firmware LED mapping or remote artwork.",
         "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
     }
 

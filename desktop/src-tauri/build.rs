@@ -3,7 +3,11 @@ fn main() {
         "get_status",
         "get_theme",
         "save_theme",
-        "preview_main",
+        "get_device",
+        "connect_device",
+        "disconnect_device",
+        "restore_device",
+        "apply_main",
         "import_theme",
         "export_theme",
     ]);
