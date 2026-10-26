@@ -16,7 +16,7 @@
 - 模拟键盘：相同写入去重、持久化恢复日志、强制终止后的恢复。
 - NuPhy USB HID 只读枚举，以及实验性的 Kick75 IO（`19f5:1026`）主灯驱动：手动常亮、精确回读、完整原态持久恢复。
 - Codex hook 适配器，以及可选的本机鉴权 OTLP/HTTP 接收器，支持 JSON 和 protobuf 日志。
-- macOS 原生应用：顶部固定整键盘预览、按型号的布局、逐状态 RGB／亮度编辑、主键区与侧灯独立配色；Kick75 提取自提供的 NuPhy IO 元素，Air75 V3 为布局示例。
+- Tauri 2 + React/TypeScript 共享设置界面：按型号预览、逐状态 RGB／亮度编辑、主键区与侧灯独立配色及原生文件对话框；Kick75 使用提取的几何与本地缓存的 NuPhy 参考素材，Air75 V3 为布局示例。
 - 版本化的事件、键盘型号和主题契约，附校验工具及贡献指南。
 
 Thinking 必须来自明确的 reasoning 事件；沉默、经过时间或没有工具调用都不能证明正在思考。完成色表示回合结束，不代表结果一定正确。
@@ -27,15 +27,16 @@ Thinking 必须来自明确的 reasoning 事件；沉默、经过时间或没有
 | --- | --- |
 | 核心 | Zig **0.17.0**，由 [.zigversion](.zigversion) 固定 |
 | HID 传输 | 随仓库提供 HIDAPI，采用其 BSD 许可选项 |
-| macOS | macOS 13+，Apple Silicon 开发构建；SwiftUI + AppKit 设置界面 |
-| Windows | x64 核心已交叉编译；实机行为未验证；图形界面后续提供 |
+| 桌面界面 | Tauri 2 + React／TypeScript／Vite；薄 Rust 桥接、原生托盘、系统 WebView |
+| macOS | macOS 13+，Apple Silicon 开发构建；WKWebView |
+| Windows | 共享界面与 Zig 核心，依赖 WebView2；原生构建和设备实机验证须独立验收 |
 | 本地 IPC | macOS Unix socket；Windows 当前用户权限限制的 named pipe |
 
-运行时不依赖 Python、Node.js、浏览器、产品账号或模型 API key。Python 仅用于开发工具和测试；基础 USB 枚举不需要输入监控或辅助功能权限。
+打包后不依赖 Python、Node.js、外部浏览器、产品账号或模型 API key；界面使用系统 WebView，Windows 需要 WebView2。Node.js 与 Rust 用于构建，Python 用于核心开发工具和测试；基础 USB 枚举不需要输入监控或辅助功能权限。
 
 ## 快速开始
 
-macOS 需要 Zig 0.17.0 和 Xcode Command Line Tools；仅原生设置界面需要 Swift 6+。
+核心需要 Zig 0.17.0；桌面界面另外需要 Node.js 24+、Rust stable 和平台 SDK（macOS 使用 Xcode Command Line Tools，Windows 使用 MSVC 构建工具与 WebView2）。
 
 ```sh
 git clone --branch dev https://github.com/zhanbodev/Keyflux.git
@@ -81,45 +82,36 @@ zig build test
 
 固件会量化 RGB：CLI 同时报告请求值与 `color_quantized`，严格校验请求值或已知量化值，并在需要时通过逆向编码精确恢复原 RGB。详见[协议、恢复规则与剩余门槛](docs/hardware/kick75.md)及[实机证据](docs/evidence/kick75-main-20261026.json)。Windows／Win 档、Flash 持久化、睡眠／拔插恢复及 AI 自动实体灯控尚未开放。
 
-### macOS 设置应用
-
-本地开发可以一条命令构建并打开隔离的 Debug 实例：
+### 共享桌面设置应用
 
 ```sh
-./scripts/dev-macos.sh
+npm --prefix desktop ci
 ./scripts/dev-macos.sh --demo
+# Windows 也可使用的跨平台入口：
+node desktop/scripts/dev.mjs --demo
 ```
 
-脚本构建 `.build/macos-dev/Keyflux Dev.app`，启动模拟核心，再让界面连接独立的开发数据目录；目录会打印在终端。`--demo` 循环演示合成的工作／思考／输出／工具／审批／完成事件，不代表已连接 Codex 或测试了实体灯光。日志位于 `.build/macos-dev/logs`。
+脚本构建 Zig sidecar，下载／校验本地参考素材，并打开支持热更新的 React 界面。**模拟核心**使用独立临时目录，路径打印在终端；不会影响已安装或旧版开发实例。`--demo` 产生合成事件，不代表真实 Codex 或实体灯控。参考素材首次下载后通过 SHA-256 校验，缓存完整时可离线启动。
 
-在该终端按 Ctrl+C，或从菜单栏退出开发应用，会结束本次开发会话并清理进程；仅关闭设置窗口则继续运行。开发配置在下次启动时保留，与默认应用数据分开保存。
+关闭设置窗口会销毁 WebView，托盘和 Zig 核心继续运行；从托盘重新打开。退出托盘应用或在启动终端按 Ctrl+C 会结束本次受监督的开发会话。已保存的开发配色保留在独立目录。
 
 ```sh
-./scripts/dev-macos.sh --no-build       # Reuse the existing Debug bundle
-./scripts/dev-macos.sh --no-ui --demo   # Simulated core and demo, without a window
-./scripts/dev-macos.sh --check          # Build, run tests, and exit; requires Python 3
-./scripts/dev-macos.sh --help
+./scripts/dev-macos.sh --no-ui --demo   # 仅模拟核心与演示事件
+./scripts/dev-macos.sh --no-build       # 跳过 Zig 重编译，界面仍支持热更新
+./scripts/dev-macos.sh --check          # React、Rust↔Zig、核心与布局检查
+./scripts/dev-macos.sh --state-dir /private/tmp/keyflux-custom
 ```
 
-`--check` 使用 `.build/macos-check` 独立构建，可在已有开发实例运行时执行。
-
-可用 `--state-dir /absolute/path` 指定开发实例目录，重复启动前先退出当前启动脚本。需要手动启动 Swift 界面时，先构建核心，再运行：
+点击主键区或侧灯条选择灯区，编辑取色器、HEX、亮度与预设；侧灯可跟随主键区或独立配色。支持导入 v1/v2、保存明确版本的 [Theme v2](docs/specs/theme-v2.md)、撤销和原生对话框导出。屏幕配色与侧灯配置不会开启实体 HID 写入。跟随核心仅显示已观测阶段；选择预览状态不发送 AI 事件。
 
 ```sh
-swift run --package-path macos --scratch-path .build/macos KeyfluxApp --core "$PWD/zig-out/bin/keyflux"
+sh scripts/package-macos.sh            # 本地 release .app
+sh scripts/package-macos.sh --debug    # Debug .app
 ```
 
-设置界面顶部固定显示键盘，下方配色区可滚动。选择预览状态或跟随核心状态，调整取色器、HEX 或亮度，即可同时看到主键区和侧灯的效果。点击键帽／灯条或切换灯区标签选择编辑区域；侧灯可跟随主键区，也可逐状态独立配色。
+产物位于 `desktop/src-tauri/target/{release,debug}/bundle/macos/Keyflux.app`，包含 Zig sidecar 与许可声明。本地签名不等于 Developer ID 签名或 Apple 公证。正式启动连接已有核心或在默认数据目录启动只读核心；显式退出只停止由该 App 启动的核心，外部核心保持运行。仅关闭设置窗口不会停止核心。
 
-提供保存、撤销、预设及导入导出；兼容导入 v1，导出明确版本的 [Theme v2](docs/specs/theme-v2.md)。侧灯目前**仅保存配置与屏幕预览**，不会启用实体侧灯或 AI 自动灯控。正常打开 App 会连接已有核心，或启动只读核心，无需手动启动守护进程即可编辑配置。关闭窗口或退出设置应用后核心继续运行，通过电源菜单或 `keyflux stop` 停止。
-
-生成本地开发包：
-
-```sh
-sh scripts/package-macos.sh
-```
-
-产物为 `dist/Keyflux.app`，使用本地临时签名，不是 Apple 公证发行包。当前没有登录项、自动安装器和 Windows 图形界面。
+[桌面架构与开发说明](docs/DESKTOP.md)记录桥接、生命周期、Windows 命令及测试。旧 `macos/` SwiftUI 实现保留为历史参考，不再是默认启动／CI 目标。NuPhy 美术资源仅存于被 Git 忽略的本地开发缓存，**不属于 MIT 内容，也未完成公开二进制分发授权**；发布前遵循[素材来源与打包边界](THIRD_PARTY_NOTICES.md#nuphy-io-preview-artwork)。
 
 ### Windows 核心
 

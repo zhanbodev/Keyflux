@@ -21,6 +21,7 @@ AI source → adapter → AgentEvent v1 → state aggregation
 | 键盘驱动 | [device.zig](../src/device.zig) 中的 `KeyboardDriver` | 编译进入核心的 Zig 源码；模拟守护进程和实验性 Kick75 手动 CLI 驱动 |
 | 配色主题 | [Theme v1](../schemas/theme-v1.schema.json)、[Theme v2](../schemas/theme-v2.schema.json)、[theme.zig](../src/theme.zig) | 主灯／侧灯配置校验、导入导出与主灯信号热加载 |
 | 型号预览 | [KeyboardPreview v1](specs/keyboard-preview-v1.md) | 独立屏幕几何资源，不等于 HID 灯位映射 |
+| 桌面桥接 | [内部桌面契约](DESKTOP.md#bridge-contract-internal-v1) | 六个 Tauri 命令；界面迁移不改变公开 CLI／事件／驱动契约 |
 | 动态灯效 | EffectRenderer，规划于 v0.4 | 尚无 renderer 注册、帧提交或二进制插件加载器 |
 
 核心统一负责状态汇总、灯光所有权、恢复与设备调度。AI 适配器不打开 HID，主题不包含硬件命令，驱动不解释对话正文。

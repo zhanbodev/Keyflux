@@ -16,7 +16,7 @@ A local AI status lighting companion, built around a Zig core for macOS and Wind
 - A simulated keyboard with write deduplication, a durable recovery journal, and recovery after forced termination.
 - Read-only NuPhy USB HID inventory, plus an experimental Kick75 IO (`19f5:1026`) main-light driver with manual solid colors, exact readback and durable raw-state recovery.
 - A Codex hook adapter and an optional authenticated, loopback-only OTLP/HTTP receiver for JSON and protobuf logs.
-- A native macOS app with a pinned keyboard preview, model-specific geometry, per-state RGB/brightness editing, and separate main/side palettes. Kick75 uses geometry extracted from the supplied NuPhy IO element; Air75 V3 is a layout example.
+- A shared Tauri 2 + React/TypeScript settings app with model previews, per-state RGB/brightness editing, main/side palettes and native file dialogs. Kick75 combines extracted geometry with locally cached NuPhy reference artwork; Air75 V3 is a layout example.
 - Versioned event, keyboard-model, and theme contracts with validators and contribution guidance.
 
 Thinking requires an explicit reasoning event. Silence, elapsed time, or the absence of tool calls do not establish that phase. Completion means a turn ended, not that its result is correct.
@@ -27,15 +27,16 @@ Thinking requires an explicit reasoning event. Silence, elapsed time, or the abs
 | --- | --- |
 | Core | Zig **0.17.0**, pinned in [.zigversion](.zigversion) |
 | HID transport | Vendored HIDAPI, BSD licensing option |
-| macOS | macOS 13+, Apple Silicon development build; SwiftUI + AppKit settings |
-| Windows | x64 core cross-compiles; physical-device behavior is unverified; GUI is planned |
+| Desktop UI | Tauri 2 + React / TypeScript / Vite; a thin Rust bridge, native tray and system WebView |
+| macOS | macOS 13+, Apple Silicon development build; WKWebView |
+| Windows | Shared UI and Zig core; WebView2 required; native build/physical testing remains separate validation |
 | Local IPC | Unix socket on macOS; user-restricted named pipe on Windows |
 
-Runtime operation needs no Python, Node.js, browser, product account, or model API key. Python is used only for development tools and tests. Basic USB inventory does not require input monitoring or accessibility permissions.
+Packaged operation needs no Python, Node.js, external browser, product account, or model API key. The UI uses the system WebView; Windows requires WebView2. Node.js and Rust are build dependencies; Python is used for core development tools/tests. Basic USB inventory does not require input monitoring or accessibility permissions.
 
 ## Quick start
 
-On macOS, install Zig 0.17.0 and Xcode Command Line Tools. Swift 6+ is needed only for the native settings app.
+Install Zig 0.17.0 for the core. The desktop app additionally needs Node.js 24+, Rust stable and platform SDKs (Xcode Command Line Tools on macOS; MSVC build tools and WebView2 on Windows).
 
 ```sh
 git clone --branch dev https://github.com/zhanbodev/Keyflux.git
@@ -81,45 +82,36 @@ Use USB, firmware **4.0.18.6** and the **Mac keyboard profile**; close other lig
 
 The firmware quantizes RGB; the CLI reports the requested color and `color_quantized`, checks the exact requested or known quantized readback, and restores the original with an exact encoder check. See [protocol, recovery rules and remaining gates](docs/hardware/kick75.md) and [physical test evidence](docs/evidence/kick75-main-20261026.json). Windows/Win profile, flash persistence, sleep/unplug recovery and AI-driven physical changes are not enabled.
 
-### macOS settings app
-
-For local development, build and open an isolated Debug session with one command:
+### Shared desktop settings app
 
 ```sh
-./scripts/dev-macos.sh
+npm --prefix desktop ci
 ./scripts/dev-macos.sh --demo
+# Cross-platform equivalent, including Windows:
+node desktop/scripts/dev.mjs --demo
 ```
 
-The launcher builds `.build/macos-dev/Keyflux Dev.app`, starts a simulated core, and connects the UI to a separate development state directory printed in the terminal. `--demo` cycles synthetic working/reasoning/output/tool/approval/completion events. This is a local demonstration, not a Codex connection or physical-light test. Logs stay under `.build/macos-dev/logs`.
+The launcher builds the Zig sidecar, verifies/downloads local reference assets and opens the React settings app with hot reload. Its **simulated** core uses an isolated temporary directory printed in the terminal; it leaves installed/legacy app instances alone. `--demo` produces synthetic agent events, not a Codex connection or physical-light test. Reference assets are downloaded once and verified by SHA-256; subsequent launches can run offline.
 
-Press Ctrl+C in that terminal or quit the menu bar app to stop the development session and its processes. Closing only the settings window keeps it running. Development settings persist between launches, separately from the default application data.
+Closing settings destroys its WebView while the tray and Zig core remain. Reopen through the tray. Quit the tray app or press Ctrl+C to end the supervised development session. Saved development themes persist in the isolated directory.
 
 ```sh
-./scripts/dev-macos.sh --no-build       # Reuse the existing Debug bundle
-./scripts/dev-macos.sh --no-ui --demo   # Simulated core and demo, without a window
-./scripts/dev-macos.sh --check          # Build, run tests, and exit; requires Python 3
-./scripts/dev-macos.sh --help
+./scripts/dev-macos.sh --no-ui --demo   # Only simulated core and events
+./scripts/dev-macos.sh --no-build       # Skip Zig rebuild; UI still gets hot reload
+./scripts/dev-macos.sh --check          # React, Rust↔Zig, core and layout checks
+./scripts/dev-macos.sh --state-dir /private/tmp/keyflux-custom
 ```
 
-`--check` builds separately under `.build/macos-check` and can run while an existing development instance stays open.
-
-Use `--state-dir /absolute/path` for a custom development instance. Stop the current launcher before starting another. For a manual Swift launch, after building the core:
+Edit colors through the picker, HEX, brightness and presets; select main keys or side strips in the preview. Side palettes can follow the main colors or be independent. Import v1/v2, save explicit [Theme v2](docs/specs/theme-v2.md), undo changes and export through native file dialogs. Screen edits and side-strip settings do not enable physical HID writes. Follow-core mode renders only observed phases; sample selection never emits agent events.
 
 ```sh
-swift run --package-path macos --scratch-path .build/macos KeyfluxApp --core "$PWD/zig-out/bin/keyflux"
+sh scripts/package-macos.sh            # Local release .app
+sh scripts/package-macos.sh --debug    # Debug .app
 ```
 
-The settings UI uses Simplified Chinese. The top keyboard stays visible while the controls below scroll. Select a preview state (or follow the core), edit the color picker/HEX/brightness, and see main keys and side strips update immediately. Click a key/strip or use the zone tabs to choose what to edit. Side colors can follow the main palette or use independent per-state values.
+Bundles are under `desktop/src-tauri/target/{release,debug}/bundle/macos/Keyflux.app` and include the Zig sidecar and license notices. Local signatures are not Developer ID signatures or Apple notarization. Production startup attaches to an existing core or starts a read-only one using the default data directory. Explicit Quit stops only a core started by that app; attached cores are left running. Closing settings keeps either core running.
 
-Themes support Save, undo, presets and import/export. The editor imports v1 and exports explicit [Theme v2](docs/specs/theme-v2.md); a side setting is currently **configuration and screen preview only**. It does not activate side HID writes or AI-driven physical lighting. On normal startup the app connects to an existing core or starts a read-only one, keeping configuration editing available without manually launching a daemon. Closing settings or quitting the settings app leaves the core running; use the power menu or `keyflux stop` to stop it.
-
-To build a local development bundle:
-
-```sh
-sh scripts/package-macos.sh
-```
-
-The result is `dist/Keyflux.app`, with an ad-hoc development signature. It is not an Apple-notarized distribution. Login items, an automatic installer, and a Windows GUI are not available yet.
+[Desktop architecture and development](docs/DESKTOP.md) covers the bridge, lifecycle, Windows commands and testing. The old `macos/` SwiftUI implementation is retained as a historical reference and is no longer the default launcher or CI target. NuPhy artwork is an ignored local development cache, **not MIT-licensed content or a cleared redistribution asset**; [provenance and packaging boundary](THIRD_PARTY_NOTICES.md#nuphy-io-preview-artwork) apply before public binary distribution.
 
 ### Windows core
 

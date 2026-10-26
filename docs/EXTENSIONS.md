@@ -20,7 +20,8 @@ AI source → adapter → AgentEvent v1 → state aggregation
 | Keyboard model | [Keyboard schema](../schemas/keyboard-v1.schema.json), [device.zig](../src/device.zig) | Validated JSON contributed with evidence; no runtime auto-discovery from model files |
 | Keyboard driver | `KeyboardDriver` in [device.zig](../src/device.zig) | Compiled Zig source; simulated daemon plus an experimental manual Kick75 CLI driver |
 | Color theme | [Theme v1](../schemas/theme-v1.schema.json), [Theme v2](../schemas/theme-v2.schema.json), [theme.zig](../src/theme.zig) | Versioned main/side configuration, validation, import/export and main-signal hot reload |
-| Keyboard preview | [KeyboardPreview v1](specs/keyboard-preview-v1.md) | Bundled screen-only model geometry; separate from HID layout mapping |
+| Keyboard preview | [KeyboardPreview v1](specs/keyboard-preview-v1.md) | Shared `assets/keyboard-layouts` geometry; reviewed React registry, separate from HID mapping |
+| Desktop bridge | [Internal desktop contract](DESKTOP.md#bridge-contract-internal-v1) | Six Tauri commands; UI changes do not alter the public CLI/event/driver contracts |
 | Animated effect | EffectRenderer, planned for v0.4 | No renderer registration, frame submission, or binary-plugin loader yet |
 
 The core owns task aggregation, lighting ownership, recovery, and device scheduling. An AI adapter never opens HID. A theme never contains hardware commands. A driver never interprets conversation content.

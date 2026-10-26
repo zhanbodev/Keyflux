@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-27",
+  "scope": "Tauri desktop migration; simulated core only",
+  "platform": "macos",
+  "arch": "aarch64",
+  "system": "27.0.1",
+  "stack": {
+    "zig": "0.17.0",
+    "rust": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+    "node": "v24.8.0",
+    "tauri": "2.12.5",
+    "react": "19.3.1"
+  },
+  "checks": {
+    "typescript_vite": "passed",
+    "frontend_theme_tests": 11,
+    "playwright_tests": 3,
+    "rust_tests_with_real_simulated_zig_ipc": 4,
+    "zig_tests": 32,
+    "core_integration_tests": 9,
+    "preview_contribution_tests": 3,
+    "cargo_clippy_warnings_denied": "passed",
+    "cargo_fmt": "passed",
+    "prettier": "passed",
+    "codesign_deep_strict": "passed",
+    "native_webview_and_bundled_core_startup": "passed",
+    "native_normal_quit_stops_owned_core": "passed",
+    "attached_external_core_remains_running": "passed in Rust IPC test",
+    "supervised_demo_phases": [
+      "working",
+      "thinking",
+      "output",
+      "tool",
+      "attention",
+      "complete"
+    ],
+    "supervisor_termination_cleans_owned_simulated_core": "passed",
+    "fresh_reference_sprite_extraction_sha256": "passed"
+  },
+  "bundle": {
+    "type": "macOS app",
+    "profile": "release opt-level=s thin LTO stripped",
+    "reported_mib": 7.22,
+    "file_bytes": 7567852,
+    "signature": "ad-hoc",
+    "notarized": false,
+    "public_distribution": false
+  },
+  "limits": [
+    "No real HID commands sent during migration verification",
+    "Windows native CI outcome must be checked separately; no Windows device/GUI physical acceptance",
+    "Native file-dialog interaction and window-close/tray-reopen need manual acceptance",
+    "Full shell plus WebView CPU/RSS not benchmarked; previous core-only measurements do not apply",
+    "NuPhy artwork cached locally, not included in Git or cleared for public binary redistribution",
+    "Real Codex reasoning/output coverage remains unverified"
+  ]
+}

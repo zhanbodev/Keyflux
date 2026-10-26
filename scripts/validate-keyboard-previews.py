@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT = ROOT / "macos/Sources/KeyfluxApp/Resources/Keyboards"
+DEFAULT = ROOT / "assets/keyboard-layouts"
 
 
 def validate(value):

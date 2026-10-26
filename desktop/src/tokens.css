@@ -1,0 +1,15 @@
+:root {
+  color-scheme: light;
+  --accent: #2274e7;
+}
+html {
+  min-width: 680px;
+}
+button,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+::selection {
+  background: #dceaff;
+}

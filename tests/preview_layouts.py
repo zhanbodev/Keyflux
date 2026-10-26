@@ -21,10 +21,10 @@ importer = module("nuphy_dom", "import-nuphy-preview.py")
 
 class PreviewContractTest(unittest.TestCase):
     def setUp(self):
-        self.layout = json.loads((ROOT / "macos/Sources/KeyfluxApp/Resources/Keyboards/nuphy-kick75-io.json").read_text(encoding="utf-8"))
+        self.layout = json.loads((ROOT / "assets/keyboard-layouts/nuphy-kick75-io.json").read_text(encoding="utf-8"))
 
     def test_shipped_models_are_distinct_valid_layouts(self):
-        other = json.loads((ROOT / "macos/Sources/KeyfluxApp/Resources/Keyboards/nuphy-air75-v3.json").read_text(encoding="utf-8"))
+        other = json.loads((ROOT / "assets/keyboard-layouts/nuphy-air75-v3.json").read_text(encoding="utf-8"))
         self.assertNotEqual(validator.validate(self.layout), validator.validate(other))
         self.assertTrue(other["preview_only"])
         self.assertEqual(len(self.layout["keys"]), 81)

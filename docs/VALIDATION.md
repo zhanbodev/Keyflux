@@ -70,3 +70,12 @@ Theme v2 显式增加 side 字段；v1 导入和导出字段不变。已验证 v
 检查包括 32 项 Zig 测试、9 项 IPC／配置集成测试、3 项预览贡献／DOM 惰性提取测试；Windows x64 核心跨编译、SwiftPM 资源打包和 macOS Debug 本地签名构建。新增预览与配色验证没有发送实体 HID 报告。先前硬件验收记录的范围不扩大。
 
 开发检查已改为 `.build/macos-check/Keyflux Check.app` 独立目录，可在已有开发实例运行时执行 `scripts/dev-macos.sh --check`；该路径已实际通过，不需要停止现有会话。
+
+
+## 2026-10-27 Tauri 2 + React/TypeScript 迁移
+
+默认开发入口与打包已切换至 `desktop/`；旧 SwiftUI 实现仅保留为历史参考。Zig 协议、设备门槛及恢复链路保持原实现。共享布局移至 `assets/keyboard-layouts/`，Kick75 使用本地校验缓存中的原外壳、三段键帽遮罩、旋钮及媒体图标；仅提取坐标后重画通用圆角键帽的旧方案不再作为默认预览。侧灯位置仍是示意，字体仍可能与网页不同。
+
+[本地软件证据](evidence/tauri-migration-20261027.json)：11 项前端契约测试、3 项 Playwright 交互测试、4 项 Rust 测试（包含真实 Zig 模拟 IPC）、32 项 Zig 测试、9 项核心集成测试及 3 项预览贡献测试通过。验证了 v1→v2、两区配色隔离、非法配置拒绝、Unicode 主题保存与重启回读、外部核心不被退出操作停止、实际 WKWebView 连接随包核心。完整演示经过 working/thinking/output/tool/attention/complete，启动器退出后自有模拟核心正常停止。
+
+最终 macOS release `.app` 约 **7.22 MiB**，通过 `codesign --verify --deep --strict`，使用 ad-hoc 签名而非 Developer ID／公证。正常退出实际 release App 后，自有核心停止。原生导入导出对话框交互、关闭窗口后从托盘重开仍需手动验收；Windows 实机与真实 Codex 阶段仍未验收。整个 App 加 WebView 的 CPU/RSS 尚未基准测试，不能复用早先核心指标。本次未发送实体 HID 报告。素材仅缓存于本地，不能据此发布含原始 NuPhy 美术的二进制。

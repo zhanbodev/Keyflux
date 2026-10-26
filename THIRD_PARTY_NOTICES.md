@@ -16,3 +16,13 @@ The core, transport wrapper and S4 codec are independently implemented. The colo
 [Keyphore](https://github.com/BarryBarrywu/Keyphore), GPL-3.0-only, Copyright (c) 2026 Barry Barry Wu, is a user-facing behavior reference. Its source code, images, Swift components, Rust components and GPL implementation are not bundled, linked or translated into this repository. Keyflux's blue/orange/green state semantics do not claim pixel or waveform equivalence.
 
 NuPhy, Codex, ChatGPT, Claude and DeepSeek remain names of their respective owners. Integration does not imply endorsement.
+
+## NuPhy IO preview artwork
+
+The Tauri development preview uses NuPhy IO's original Kick75 housing/knob WebP files, segmented SVG key outlines and literal SVG sprite symbols. Source URLs and SHA-256 digests are recorded in `desktop/reference-assets.json`. Downloaded artwork lives in the Git-ignored `desktop/public/reference/` local cache. The fetcher parses static literals and never executes third-party JavaScript. Geometry/legends come from the user-supplied DOM; no account data is retained.
+
+No open-source redistribution license was established for this artwork. It is **excluded from the repository's MIT grant**. Local builds include the cached reference art; those bundles are development artifacts, not cleared public distribution assets. Obtain permission or replace it with independently authored artwork before publishing binaries. The supplied Keyflux logo remains separate from NuPhy reference artwork.
+
+## Desktop dependencies
+
+Tauri, its dialog plugin, React, TypeScript, Vite and other dependencies retain their respective licenses. Exact dependency graphs are pinned in `desktop/package-lock.json` and `desktop/src-tauri/Cargo.lock`; consult their package/crate license files for attribution when distributing a binary. Node, Vite, TypeScript, Vitest and Playwright are development tools, not application runtimes. Tauri uses WKWebView on macOS and the separately supplied WebView2 runtime on Windows.

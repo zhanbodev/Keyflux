@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "settings",
+  "description": "Local settings may invoke only the six reviewed desktop commands.",
+  "windows": ["settings"],
+  "permissions": [
+    "allow-get-status",
+    "allow-get-theme",
+    "allow-save-theme",
+    "allow-preview-main",
+    "allow-import-theme",
+    "allow-export-theme"
+  ]
+}

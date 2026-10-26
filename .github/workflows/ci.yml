@@ -24,5 +24,28 @@ jobs:
       - run: zig-out/bin/keyflux${{ runner.os == 'Windows' && '.exe' || '' }} validate-model models/nuphy-kick75-io.json
       - run: zig-out/bin/keyflux${{ runner.os == 'Windows' && '.exe' || '' }} validate-theme examples/theme.json
       - run: zig-out/bin/keyflux${{ runner.os == 'Windows' && '.exe' || '' }} validate-theme examples/theme-v2.json
-      - if: runner.os == 'macOS'
-        run: swift build --package-path macos --scratch-path .build/macos
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+      - run: npm --prefix desktop ci
+      - run: node desktop/scripts/dev.mjs --check
+      - run: npm --prefix desktop run format:check
+      - run: cargo fmt --manifest-path desktop/src-tauri/Cargo.toml --check
+      - run: cargo clippy --locked --manifest-path desktop/src-tauri/Cargo.toml -- -D warnings

@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "notice": "NuPhy IO artwork. Local development reference only; not covered by Keyflux MIT license. Do not redistribute without the rights holder\u2019s permission. No website JavaScript is executed.",
+  "assets": [
+    {
+      "file": "case.webp",
+      "url": "https://drive.nuphy.io/static/media/Kick75_empty1.4b11eacfb5f26ca50f88.webp",
+      "sha256": "5d23065a32cf3d3c1a058fd3cb87579cd7f79c26292b2cf465ccc3f82a05e651"
+    },
+    {
+      "file": "knob.webp",
+      "url": "https://drive.nuphy.io/static/media/Kick75_lever1.95b639a58b5e9b7de3d8.webp",
+      "sha256": "c142905c735925be8e7de13202cde518a6705737994c25d3635b173f9ed3b363"
+    },
+    {
+      "file": "key-left.svg",
+      "url": "https://drive.nuphy.io/static/media/Vector_dwarf_left.288f17f5e948b6215b8e.svg",
+      "sha256": "607e3fbd1c68876fc9b62672fa2cd281c8658f624651cf756d02a6b2fcb2dc0a"
+    },
+    {
+      "file": "key-middle.svg",
+      "url": "https://drive.nuphy.io/static/media/Vector_dwarf_middle.44b7cc1f6b6a04cdf373.svg",
+      "sha256": "2eb47aab6cda48cf877ada5839339ce3d88225851ed9227aa4956fbe15247349"
+    },
+    {
+      "file": "key-right.svg",
+      "url": "https://drive.nuphy.io/static/media/Vector_dwarf_right.1ba25231110122664132.svg",
+      "sha256": "499149a823ac6db29d3521a99c4b81907da8bb2c884c8ed8ce9e7490918e7215"
+    },
+    {
+      "file": "missioncontrol.svg",
+      "url": "https://drive.nuphy.io/static/js/main.eff2c3e9.js",
+      "symbol": "missioncontrol",
+      "sha256": "baf817dfaf0cfa0a34f993a4da1d0dc279ee13754a2894835ecbc4c15f5ab529"
+    },
+    {
+      "file": "search.svg",
+      "url": "https://drive.nuphy.io/static/js/main.eff2c3e9.js",
+      "symbol": "search",
+      "sha256": "57e20dd23a0010686935961bca897183fe6525c3155c66653fc7ec5e5ebc53de"
+    },
+    {
+      "file": "siri.svg",
+      "url": "https://drive.nuphy.io/static/js/main.eff2c3e9.js",
+      "symbol": "siri",
+      "sha256": "10633415a2fc2068c7e2480e2846b4b86d8ee2d1eaf234a0929c673d1cc743ac"
+    },
+    {
+      "file": "macdnd.svg",
+      "url": "https://drive.nuphy.io/static/js/main.eff2c3e9.js",
+      "symbol": "macdnd",
+      "sha256": "d6c8c0707dd762342fd9afebfc0c0987dca97776002bb45de98ff6ba0c91f5f9"
+    },
+    {
+      "file": "mediaKeys_keyIcon6.svg",
+      "url": "https://drive.nuphy.io/static/js/main.eff2c3e9.js",
+      "symbol": "mediaKeys_keyIcon6",
+      "sha256": "a7e531db8efe11f74b8cd85be8e5cf4ea346057d2776677b4e390fe295d5dc21"
+    },
+    {
+      "file": "mediaKeys_keyIcon4.svg",
+      "url": "https://drive.nuphy.io/static/js/main.eff2c3e9.js",
+      "symbol": "mediaKeys_keyIcon4",
+      "sha256": "2d22b695a9731833d55d80708854c15203f3d285e34435956c6b7445ae73ea49"
+    },
+    {
+      "file": "mediaKeys_keyIcon7.svg",
+      "url": "https://drive.nuphy.io/static/js/main.eff2c3e9.js",
+      "symbol": "mediaKeys_keyIcon7",
+      "sha256": "47c25b54126ea2861e2921f1d64a828fbbb8482adee902d54837880c36969dc0"
+    },
+    {
+      "file": "mediaKeys_keyIcon3.svg",
+      "url": "https://drive.nuphy.io/static/js/main.eff2c3e9.js",
+      "symbol": "mediaKeys_keyIcon3",
+      "sha256": "fb6c6346df303e0750c0b5dba465b24d1b74ae5842b9c9760c9ca42720304815"
+    },
+    {
+      "file": "mediaKeys_keyIcon1.svg",
+      "url": "https://drive.nuphy.io/static/js/main.eff2c3e9.js",
+      "symbol": "mediaKeys_keyIcon1",
+      "sha256": "b5f81728ad08f6b9f4fd623cafd260f8c8cca37ce895ed91e238430a6f41925b"
+    },
+    {
+      "file": "mediaKeys_keyIcon2.svg",
+      "url": "https://drive.nuphy.io/static/js/main.eff2c3e9.js",
+      "symbol": "mediaKeys_keyIcon2",
+      "sha256": "4ca65f82ceecf93f44e6e2dcbcf75f9de967f40ecd78588a3594590ea9df92f9"
+    }
+  ]
+}
