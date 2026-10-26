@@ -76,6 +76,11 @@ Theme v2 显式增加 side 字段；v1 导入和导出字段不变。已验证 v
 
 默认开发入口与打包已切换至 `desktop/`；旧 SwiftUI 实现仅保留为历史参考。Zig 协议、设备门槛及恢复链路保持原实现。共享布局移至 `assets/keyboard-layouts/`，Kick75 使用本地校验缓存中的原外壳、三段键帽遮罩、旋钮及媒体图标；仅提取坐标后重画通用圆角键帽的旧方案不再作为默认预览。侧灯位置仍是示意，字体仍可能与网页不同。
 
-[本地软件证据](evidence/tauri-migration-20261027.json)：11 项前端契约测试、3 项 Playwright 交互测试、4 项 Rust 测试（包含真实 Zig 模拟 IPC）、32 项 Zig 测试、9 项核心集成测试及 3 项预览贡献测试通过。验证了 v1→v2、两区配色隔离、非法配置拒绝、Unicode 主题保存与重启回读、外部核心不被退出操作停止、实际 WKWebView 连接随包核心。完整演示经过 working/thinking/output/tool/attention/complete，启动器退出后自有模拟核心正常停止。
+[本地软件证据](evidence/tauri-migration-20261027.json)：14 项前端契约测试、3 项 Playwright 交互测试、4 项 Rust 测试（包含真实 Zig 模拟 IPC）、32 项 Zig 测试、10 项核心集成测试及 3 项预览贡献测试通过。验证了 v1→v2、两区配色隔离、非法配置拒绝、Unicode 主题保存与重启回读、外部核心不被退出操作停止、实际 WKWebView 连接随包核心。完整演示经过 working/thinking/output/tool/attention/complete，启动器退出后自有模拟核心正常停止。
 
 最终 macOS release `.app` 约 **7.22 MiB**，通过 `codesign --verify --deep --strict`，使用 ad-hoc 签名而非 Developer ID／公证。正常退出实际 release App 后，自有核心停止。原生导入导出对话框交互、关闭窗口后从托盘重开仍需手动验收；Windows 实机与真实 Codex 阶段仍未验收。整个 App 加 WebView 的 CPU/RSS 尚未基准测试，不能复用早先核心指标。本次未发送实体 HID 报告。素材仅缓存于本地，不能据此发布含原始 NuPhy 美术的二进制。
+
+
+迁移后的 Windows CI 复现既有连续请求失败：上一 named pipe 连接尚在等待 ACK／断开时，下一次 CreateFile 返回 ERROR_PIPE_BUSY，旧客户端立即报告 DaemonUnavailable。客户端现按 [Microsoft 的 named pipe 连接流程](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-client)，在发送任何请求前进行最多 1 秒的可用性等待；发送后不重放请求。回读按块读取并保留完整换行与 ACK 语义，上限为 2 秒。新增连续与六路并发客户端测试。修复已本地跨编译；Windows 运行结论以对应远端 CI 为准。
+
+主题导入也对齐 Zig 的合法省略值：部分状态、v2 侧灯默认字段与 side:null 会被明确展开为可编辑的 v2；v1 显式 side（包括 null）仍拒绝。实际开发入口与 React Fast Refresh 已通过本机 WebView 截图验证；临时测试标题已还原。

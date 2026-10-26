@@ -1,5 +1,6 @@
 """Black-box tests against the built Zig executable; never writes real HID."""
 import http.client
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -72,6 +73,18 @@ class RuntimeTest(unittest.TestCase):
 
     def status(self):
         return json.loads(self.call("status").stdout)["result"]
+
+    def test_back_to_back_and_parallel_ipc_clients(self):
+        # A fast client can finish before a Windows server consumes its ACK.
+        # Pollers and theme readers must wait for the pipe, not lose requests.
+        for _ in range(12):
+            self.assertEqual(self.status()["backend"], "simulated")
+        def read(index):
+            command = "status" if index % 2 else "theme-get"
+            return json.loads(self.call(command).stdout)["ok"]
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            self.assertTrue(all(pool.map(read, range(24))))
+        self.assertEqual(self.status()["backend"], "simulated")
 
     def test_hardware_commands_reject_isolated_state_before_device_access(self):
         for args in [("hardware-solid", "#06B6D4", "15"), ("hardware-restore",), ("hardware-verify-restore",)]:

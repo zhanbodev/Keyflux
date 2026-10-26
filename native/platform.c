@@ -590,10 +590,20 @@ int kf_reply(const char *bytes, size_t n) {
 }
 int kf_request(const char *bytes, size_t n, char *out, size_t cap) {
 #ifdef _WIN32
-    HANDLE f =
-        CreateFileW(pipe_name, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-    if (f == INVALID_HANDLE_VALUE)
-        return -1;
+    /* The preceding client may have returned before the server consumed its
+       ACK/disconnected. A busy single-instance pipe is not an absent daemon.
+       Wait only before sending anything; never replay a mutation after write. */
+    HANDLE f;
+    uint64_t connect_until = kf_monotonic_ns() + 1000000000ULL;
+    for (;;) {
+        f = CreateFileW(pipe_name, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+        if (f != INVALID_HANDLE_VALUE)
+            break;
+        if (GetLastError() != ERROR_PIPE_BUSY || kf_monotonic_ns() >= connect_until)
+            return -1;
+        if (!WaitNamedPipeW(pipe_name, 50) && GetLastError() != ERROR_SEM_TIMEOUT)
+            return -1;
+    }
     DWORD sent = 0;
     DWORD mode = PIPE_READMODE_BYTE | PIPE_NOWAIT;
     if (!SetNamedPipeHandleState(f, &mode, NULL, NULL)) {
@@ -604,12 +614,12 @@ int kf_request(const char *bytes, size_t n, char *out, size_t cap) {
     char lf = '\n';
     DWORD x;
     if (ok)
-        ok = WriteFile(f, &lf, 1, &x, NULL);
+        ok = WriteFile(f, &lf, 1, &x, NULL) && x == 1;
     size_t got = 0;
-    uint64_t until = kf_monotonic_ns() + 300000000ULL;
+    uint64_t until = kf_monotonic_ns() + 2000000000ULL;
     while (ok && got + 1 < cap && kf_monotonic_ns() < until) {
         DWORD r = 0;
-        if (!ReadFile(f, out + got, 1, &r, NULL)) {
+        if (!ReadFile(f, out + got, (DWORD)(cap - got - 1), &r, NULL)) {
             if (GetLastError() == ERROR_NO_DATA) {
                 Sleep(1);
                 continue;
@@ -620,8 +630,12 @@ int kf_request(const char *bytes, size_t n, char *out, size_t cap) {
             Sleep(1);
             continue;
         }
-        if (out[got++] == '\n')
+        got += r;
+        char *end = memchr(out, '\n', got);
+        if (end) {
+            got = (size_t)(end - out) + 1;
             break;
+        }
     }
     if (ok && got && out[got - 1] == '\n') {
         char ack = 6;

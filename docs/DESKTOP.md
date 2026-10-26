@@ -48,7 +48,7 @@ App commands are explicitly registered in `src-tauri/build.rs` and granted only 
 | `import_theme` | None | Native JSON chooser, bounded read and Zig validation; parsed theme or `null` on cancel |
 | `export_theme` | `{theme: Theme v1/v2}` | Zig validation then native save dialog; boolean, false on cancel |
 
-Inputs are limited to 16 KiB; CLI stdout to 128 KiB; each CLI subprocess has a five-second timeout. The trusted executable receives fixed arguments via `Command`, never a shell. Input travels through stdin. Error replies expose stable codes rather than stderr or user paths. React validates for immediate feedback; Zig remains authoritative. Frontend color selection updates local draft state and does not fabricate an AI event. Theme v1 is explicitly upgraded to v2 by the editor; `theme-get` itself retains the original schema.
+Inputs are limited to 16 KiB; CLI stdout to 128 KiB; each CLI subprocess has a five-second timeout. The trusted executable receives fixed arguments via `Command`, never a shell. Input travels through stdin. Error replies expose stable codes rather than stderr or user paths. React validates for immediate feedback; Zig remains authoritative. Frontend color selection updates local draft state and does not fabricate an AI event. Valid omitted fields and partial palettes are expanded using the core defaults; a v1 side field is still rejected even when null. Theme v1 is explicitly upgraded to v2 by the editor; `theme-get` itself retains the original schema.
 
 The browser entry `?fixture=1` is an explicit UI fixture only. A normal browser cannot silently display a successful core connection. Browser fixture tests do not certify native dialogs, hardware writes, or real provider events.
 

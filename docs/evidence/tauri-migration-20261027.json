@@ -14,11 +14,11 @@
   },
   "checks": {
     "typescript_vite": "passed",
-    "frontend_theme_tests": 11,
+    "frontend_theme_tests": 14,
     "playwright_tests": 3,
     "rust_tests_with_real_simulated_zig_ipc": 4,
     "zig_tests": 32,
-    "core_integration_tests": 9,
+    "core_integration_tests": 10,
     "preview_contribution_tests": 3,
     "cargo_clippy_warnings_denied": "passed",
     "cargo_fmt": "passed",
@@ -36,7 +36,9 @@
       "complete"
     ],
     "supervisor_termination_cleans_owned_simulated_core": "passed",
-    "fresh_reference_sprite_extraction_sha256": "passed"
+    "fresh_reference_sprite_extraction_sha256": "passed",
+    "tauri_vite_native_start_and_react_fast_refresh": "passed",
+    "windows_cross_compile_after_pipe_connection_fix": "passed"
   },
   "bundle": {
     "type": "macOS app",

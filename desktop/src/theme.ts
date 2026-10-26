@@ -49,66 +49,68 @@ function keys(value: Record<string, unknown>, expected: string[]) {
     Object.keys(value).length === expected.length && expected.every((k) => Object.hasOwn(value, k))
   );
 }
-function palette(value: unknown): value is Palette {
-  return (
-    record(value) &&
-    keys(value, [...phases]) &&
-    phases.every((p) => {
-      const s = value[p];
-      return (
-        record(s) &&
-        keys(s, ['color', 'brightness']) &&
-        typeof s.color === 'string' &&
-        /^#[\da-f]{6}$/i.test(s.color) &&
-        typeof s.brightness === 'number' &&
-        Number.isInteger(s.brightness) &&
-        s.brightness >= 0 &&
-        s.brightness <= 100
-      );
-    })
-  );
+function allowed(value: Record<string, unknown>, fields: readonly string[]): boolean {
+  return Object.keys(value).every((key) => fields.includes(key));
+}
+function palette(value: unknown, defaults: Palette): Palette {
+  if (value === undefined) return structuredClone(defaults);
+  if (!record(value) || !allowed(value, phases)) throw new Error('配色状态字段无效');
+  const result = structuredClone(defaults);
+  for (const phase of phases) {
+    if (!Object.hasOwn(value, phase)) continue;
+    const signal = value[phase];
+    if (
+      !record(signal) ||
+      !keys(signal, ['color', 'brightness']) ||
+      typeof signal.color !== 'string' ||
+      !/^#[\da-f]{6}$/i.test(signal.color) ||
+      typeof signal.brightness !== 'number' ||
+      !Number.isInteger(signal.brightness) ||
+      signal.brightness < 0 ||
+      signal.brightness > 100
+    )
+      throw new Error('配色颜色或亮度无效');
+    result[phase] = { color: signal.color, brightness: signal.brightness };
+  }
+  return result;
 }
 export function parseTheme(value: unknown): Theme {
   if (
     !record(value) ||
-    ![1, 2].includes(value.schema_version as number) ||
-    !keys(value, [
-      'schema_version',
-      'name',
-      'completion_hold_ms',
-      'signals',
-      ...(value.schema_version === 2 ? ['side'] : []),
-    ])
+    !allowed(value, ['schema_version', 'name', 'completion_hold_ms', 'signals', 'side'])
   )
     throw new Error('不支持的配色格式或字段');
+  const version = value.schema_version === undefined ? 1 : value.schema_version;
+  if (![1, 2].includes(version as number) || (version === 1 && Object.hasOwn(value, 'side')))
+    throw new Error('不支持的配色格式或字段');
+  const defaults = defaultTheme();
+  const name = value.name === undefined ? defaults.name : value.name;
+  const hold =
+    value.completion_hold_ms === undefined ? defaults.completion_hold_ms : value.completion_hold_ms;
   if (
-    typeof value.name !== 'string' ||
-    new TextEncoder().encode(value.name).length < 1 ||
-    new TextEncoder().encode(value.name).length > 64 ||
-    !Number.isInteger(value.completion_hold_ms) ||
-    (value.completion_hold_ms as number) < 1000 ||
-    (value.completion_hold_ms as number) > 60000 ||
-    !palette(value.signals)
+    typeof name !== 'string' ||
+    new TextEncoder().encode(name).length < 1 ||
+    new TextEncoder().encode(name).length > 64 ||
+    typeof hold !== 'number' ||
+    !Number.isInteger(hold) ||
+    hold < 1000 ||
+    hold > 60000
   )
     throw new Error('配色名称、保持时间或颜色无效');
+  const signals = palette(value.signals, defaults.signals);
   const side = value.side;
-  if (
-    value.schema_version === 2 &&
-    (!record(side) ||
-      !keys(side, ['enabled', 'mode', 'signals']) ||
-      typeof side.enabled !== 'boolean' ||
-      !['follow_main', 'independent'].includes(side.mode as string) ||
-      !palette(side.signals))
-  )
-    throw new Error('侧灯配色无效');
-  return structuredClone({
-    ...value,
-    schema_version: 2,
-    side:
-      value.schema_version === 1
-        ? { enabled: false, mode: 'follow_main', signals: structuredClone(value.signals) }
-        : side,
-  }) as Theme;
+  let normalizedSide = structuredClone(defaults.side);
+  if (version === 1) normalizedSide.signals = structuredClone(signals);
+  else if (side !== undefined && side !== null) {
+    if (!record(side) || !allowed(side, ['enabled', 'mode', 'signals']))
+      throw new Error('侧灯配色无效');
+    const enabled = side.enabled === undefined ? false : side.enabled;
+    const mode = side.mode === undefined ? 'follow_main' : side.mode;
+    if (typeof enabled !== 'boolean' || (mode !== 'follow_main' && mode !== 'independent'))
+      throw new Error('侧灯配色无效');
+    normalizedSide = { enabled, mode, signals: palette(side.signals, defaults.signals) };
+  }
+  return { schema_version: 2, name, completion_hold_ms: hold, signals, side: normalizedSide };
 }
 export function sideSignal(theme: Theme, phase: Phase): Signal | null {
   return !theme.side.enabled

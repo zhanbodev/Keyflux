@@ -16,6 +16,30 @@ describe('Theme v2 editor boundary', () => {
     expect(migrated.signals.thinking.color).toBe('#06B6D4');
     expect(v1.signals.thinking.color).toBe('#06B6D4');
   });
+  it('fills omitted v1 fields with the same defaults as Zig', () => {
+    expect(parseTheme({})).toEqual(defaultTheme());
+    const theme = parseTheme({ signals: { thinking: { color: '#112233', brightness: 20 } } });
+    expect(theme.signals.thinking.color).toBe('#112233');
+    expect(theme.signals.output.color).toBe('#8B5CF6');
+    expect(theme.side.enabled).toBe(false);
+  });
+  it('normalizes partial v2 side palettes without borrowing main overrides', () => {
+    const theme = parseTheme({
+      schema_version: 2,
+      signals: { thinking: { color: '#FF0000', brightness: 10 } },
+      side: {
+        enabled: true,
+        mode: 'independent',
+        signals: { output: { color: '#123456', brightness: 25 } },
+      },
+    });
+    expect(theme.side.signals.thinking.color).toBe('#06B6D4');
+    expect(theme.side.signals.output.color).toBe('#123456');
+    expect(parseTheme({ schema_version: 2, side: null })).toEqual(defaultTheme());
+  });
+  it('rejects explicit v1 side fields even if null', () => {
+    expect(() => parseTheme({ schema_version: 1, side: null })).toThrow();
+  });
   it('does not invent an enabled side signal', () => {
     const theme = defaultTheme();
     expect(sideSignal(theme, 'thinking')).toBeNull();
