@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "nuphy-kick75-io",
+  "name": "NuPhy Kick75 IO",
+  "protocol": "nuphy_io_s4",
+  "usb": {
+    "vendor_id": 6645,
+    "product_id": 4134,
+    "usage_page": 1,
+    "usage": 0,
+    "report_bytes": 64,
+    "interface_number": 3
+  },
+  "firmware": {
+    "family": "unknown",
+    "versions": []
+  },
+  "verified_on": [],
+  "layout": null,
+  "capabilities": {
+    "solid_main": false,
+    "per_key": false,
+    "readback": false,
+    "restore": false,
+    "max_frames_per_second": 0
+  },
+  "verification": "recognized",
+  "evidence": [
+    "https://github.com/Pixelmoss/codex-kick75-status-lights/blob/main/docs/PROTOCOL.md"
+  ]
+}

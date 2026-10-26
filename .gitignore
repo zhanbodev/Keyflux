@@ -1,0 +1,7 @@
+.zig-cache/
+zig-out/
+.build/
+dist/
+*.sock
+*.log
+.DS_Store

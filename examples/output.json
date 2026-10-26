@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "provider": "codex",
+  "session_id": "demo-session",
+  "turn_id": "demo-turn",
+  "event_id": "demo-2",
+  "timestamp_ns": 1700000002000000000,
+  "kind": "output"
+}

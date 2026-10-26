@@ -1,0 +1,20 @@
+{
+  "measured_at": "2026-10-26T17:39:46.802525+08:00",
+  "version": "0.1.0-dev",
+  "host": {
+    "system": "Darwin",
+    "release": "27.0.0",
+    "architecture": "arm64"
+  },
+  "backend": "simulated",
+  "idle_seconds": 5,
+  "idle_cpu_percent_one_core": 0.0768,
+  "idle_resident_bytes": 12173312,
+  "after_samples_resident_bytes": 12238848,
+  "samples": 100,
+  "simulated_cli_to_ack_p95_ms": 7.799,
+  "note": "Includes CLI startup, IPC and simulated durable writes. Does not measure real HID, actual Codex export delay or physical lighting.",
+  "real_hid_verified": false,
+  "live_codex_desktop_verified": false,
+  "release_ready": false
+}

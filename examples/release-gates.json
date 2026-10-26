@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "model_id": "nuphy-kick75-io",
+  "firmware": "unverified",
+  "platform": "macos-aarch64",
+  "main_solid_verified": false,
+  "restore_verified": false,
+  "profile_isolation_verified": false,
+  "persistence_understood": false,
+  "safe_write_path_verified": false,
+  "reasoning_event_verified": false,
+  "output_event_verified": false,
+  "session_correlation_verified": false,
+  "live_codex_desktop_verified": false,
+  "end_to_end_p95_ms": null,
+  "evidence_files": []
+}

@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keyflux.local/schemas/agent-event-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "provider": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 192,
+      "pattern": "^[!-~]+$"
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 192,
+      "pattern": "^[!-~]+$"
+    },
+    "turn_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 192,
+      "pattern": "^[!-~]+$"
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 192,
+      "pattern": "^[!-~]+$"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "timestamp_ns": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 18446744073709551615
+    },
+    "kind": {
+      "enum": [
+        "turn_started",
+        "thinking",
+        "output",
+        "tool_started",
+        "tool_finished",
+        "attention",
+        "attention_resolved",
+        "turn_completed",
+        "turn_cancelled",
+        "turn_failed",
+        "source_lost",
+        "source_resumed",
+        "session_ended"
+      ]
+    },
+    "task_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 192,
+          "pattern": "^[!-?A-~][!-~]*$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "request_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 192,
+          "pattern": "^[!-~]+$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "tool_name": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 192,
+          "pattern": "^[!-~]+$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "provider",
+    "session_id",
+    "turn_id",
+    "event_id",
+    "timestamp_ns",
+    "kind"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "tool_started",
+              "tool_finished",
+              "attention",
+              "attention_resolved"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "request_id"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 192,
+            "pattern": "^[!-~]+$"
+          }
+        }
+      }
+    }
+  ]
+}

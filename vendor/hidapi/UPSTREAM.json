@@ -1,0 +1,55 @@
+{
+  "repository": "https://github.com/libusb/hidapi",
+  "tag": "hidapi-0.15.0",
+  "license": "BSD-3-Clause",
+  "files": [
+    {
+      "path": "hidapi/hidapi.h",
+      "git_blob_sha": "c101d55b8128afdee0dfbfa0d5b24db96e1d8d9c"
+    },
+    {
+      "path": "mac/hid.c",
+      "git_blob_sha": "a91bc190241a4185787dfb7c6e9e88d24d5b2dc3"
+    },
+    {
+      "path": "windows/hid.c",
+      "git_blob_sha": "e87854764797271e890e8f71ff741ae0eb7da854"
+    },
+    {
+      "path": "windows/hidapi_cfgmgr32.h",
+      "git_blob_sha": "638512a8b4d54c216ee2f9a4b42e800989f0ded2"
+    },
+    {
+      "path": "LICENSE-bsd.txt",
+      "git_blob_sha": "538cdf95cf63e6f8fab8e9c4c7222a35357b4ce1"
+    },
+    {
+      "path": "mac/hidapi_darwin.h",
+      "git_blob_sha": "34c30a07de5ba91398417dc8fc600d03a2123391"
+    },
+    {
+      "path": "windows/hidapi_winapi.h",
+      "git_blob_sha": "e5a12428ee7620d5c62fe663bd30ce0c241bb5ab"
+    },
+    {
+      "path": "windows/hidapi_hidclass.h",
+      "git_blob_sha": "4ad98eabb880d4e86b97c4bb3e2844ef49a4cce8"
+    },
+    {
+      "path": "windows/hidapi_hidsdi.h",
+      "git_blob_sha": "ffed5b2f8874325dd6a05445338d35401330411e"
+    },
+    {
+      "path": "windows/hidapi_descriptor_reconstruct.c",
+      "git_blob_sha": "04f5ee7b2a58192f6301fe888494d6a3fdc7355e"
+    },
+    {
+      "path": "windows/hidapi_hidpi.h",
+      "git_blob_sha": "75a5812c9438353be0669b8035155774ad5f0779"
+    },
+    {
+      "path": "windows/hidapi_descriptor_reconstruct.h",
+      "git_blob_sha": "4b8ca83fbc133849136e4efe49ef11dc50b65c1c"
+    }
+  ]
+}

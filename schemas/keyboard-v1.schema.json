@@ -1,0 +1,421 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keyflux.local/schemas/keyboard-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 192,
+      "pattern": "^[!-~]+$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "protocol": {
+      "enum": [
+        "nuphy_io_s4"
+      ]
+    },
+    "usb": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "vendor_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "product_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "usage_page": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "usage": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "report_bytes": {
+          "const": 64
+        },
+        "interface_number": {
+          "type": "integer",
+          "minimum": -1,
+          "maximum": 32767,
+          "default": -1
+        }
+      },
+      "required": [
+        "vendor_id",
+        "product_id",
+        "usage_page",
+        "usage",
+        "report_bytes"
+      ]
+    },
+    "firmware": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "family": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 192,
+          "pattern": "^[!-~]+$"
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 192,
+            "pattern": "^[!-~]+$"
+          }
+        }
+      },
+      "required": []
+    },
+    "verified_on": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "platform": {
+            "enum": [
+              "macos",
+              "windows"
+            ]
+          },
+          "architecture": {
+            "enum": [
+              "aarch64",
+              "x86_64"
+            ]
+          },
+          "firmware": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 192,
+            "pattern": "^[!-~]+$"
+          },
+          "profile": {
+            "enum": [
+              "mac",
+              "win"
+            ]
+          },
+          "transport": {
+            "enum": [
+              "usb"
+            ]
+          },
+          "zone": {
+            "enum": [
+              "main"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "platform",
+          "architecture",
+          "firmware",
+          "profile",
+          "transport",
+          "zone",
+          "evidence"
+        ]
+      }
+    },
+    "layout": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "key_count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 256
+            },
+            "led_count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1024
+            },
+            "leds": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 256,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 192,
+                    "pattern": "^[!-~]+$"
+                  },
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1023
+                  },
+                  "x": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "id",
+                  "index",
+                  "x",
+                  "y"
+                ]
+              }
+            }
+          },
+          "required": [
+            "key_count",
+            "led_count",
+            "leds"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "solid_main": {
+          "type": "boolean",
+          "default": false
+        },
+        "per_key": {
+          "type": "boolean",
+          "default": false
+        },
+        "readback": {
+          "type": "boolean",
+          "default": false
+        },
+        "restore": {
+          "type": "boolean",
+          "default": false
+        },
+        "max_frames_per_second": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
+        }
+      },
+      "required": []
+    },
+    "verification": {
+      "enum": [
+        "recognized",
+        "experimental",
+        "verified"
+      ]
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "name",
+    "protocol",
+    "usb",
+    "capabilities",
+    "verification",
+    "evidence"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "verification": {
+            "const": "recognized"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "capabilities": {
+            "properties": {
+              "solid_main": {
+                "const": false
+              },
+              "per_key": {
+                "const": false
+              },
+              "restore": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verification": {
+            "const": "verified"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "firmware",
+          "verified_on"
+        ],
+        "properties": {
+          "evidence": {
+            "minItems": 1
+          },
+          "firmware": {
+            "required": [
+              "versions"
+            ],
+            "properties": {
+              "versions": {
+                "minItems": 1
+              }
+            }
+          },
+          "verified_on": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "capabilities": {
+            "required": [
+              "per_key"
+            ],
+            "properties": {
+              "per_key": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "layout"
+        ],
+        "properties": {
+          "layout": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key_count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 256
+              },
+              "led_count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1024
+              },
+              "leds": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 256,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 192,
+                      "pattern": "^[!-~]+$"
+                    },
+                    "index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1023
+                    },
+                    "x": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "y": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "index",
+                    "x",
+                    "y"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "key_count",
+              "led_count",
+              "leds"
+            ]
+          },
+          "capabilities": {
+            "required": [
+              "solid_main",
+              "max_frames_per_second"
+            ],
+            "properties": {
+              "solid_main": {
+                "const": true
+              },
+              "max_frames_per_second": {
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

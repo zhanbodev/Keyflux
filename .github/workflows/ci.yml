@@ -1,0 +1,25 @@
+name: CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  core:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.0
+      - run: zig fmt --check build.zig src
+      - run: python scripts/check-vendor.py
+      - run: zig build test
+      - run: zig build -Doptimize=ReleaseSafe
+      - run: python tests/integration.py zig-out/bin/keyflux${{ runner.os == 'Windows' && '.exe' || '' }}
+      - run: zig-out/bin/keyflux${{ runner.os == 'Windows' && '.exe' || '' }} validate-model models/nuphy-kick75-io.json
+      - run: zig-out/bin/keyflux${{ runner.os == 'Windows' && '.exe' || '' }} validate-theme examples/theme.json
+      - if: runner.os == 'macOS'
+        run: swift build --package-path macos --scratch-path .build/macos

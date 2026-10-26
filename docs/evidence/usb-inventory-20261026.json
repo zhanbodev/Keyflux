@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "read_only": true,
+  "devices": [
+    {
+      "vendor_id": 6645,
+      "product_id": 4134,
+      "usage_page": 1,
+      "usage": 6,
+      "interface_number": 0,
+      "bus_type": 1,
+      "main_write_enabled": false
+    },
+    {
+      "vendor_id": 6645,
+      "product_id": 4134,
+      "usage_page": 1,
+      "usage": 2,
+      "interface_number": 2,
+      "bus_type": 1,
+      "main_write_enabled": false
+    },
+    {
+      "vendor_id": 6645,
+      "product_id": 4134,
+      "usage_page": 1,
+      "usage": 1,
+      "interface_number": 2,
+      "bus_type": 1,
+      "main_write_enabled": false
+    },
+    {
+      "vendor_id": 6645,
+      "product_id": 4134,
+      "usage_page": 1,
+      "usage": 128,
+      "interface_number": 2,
+      "bus_type": 1,
+      "main_write_enabled": false
+    },
+    {
+      "vendor_id": 6645,
+      "product_id": 4134,
+      "usage_page": 12,
+      "usage": 1,
+      "interface_number": 2,
+      "bus_type": 1,
+      "main_write_enabled": false
+    },
+    {
+      "vendor_id": 6645,
+      "product_id": 4134,
+      "usage_page": 1,
+      "usage": 0,
+      "interface_number": 3,
+      "bus_type": 1,
+      "main_write_enabled": false
+    },
+    {
+      "vendor_id": 6645,
+      "product_id": 4134,
+      "usage_page": 1,
+      "usage": 6,
+      "interface_number": 1,
+      "bus_type": 1,
+      "main_write_enabled": false
+    }
+  ]
+}
