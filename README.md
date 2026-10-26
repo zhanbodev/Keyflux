@@ -1,96 +1,158 @@
 # Keyflux
 
-本地 AI 状态灯伴侣。Zig 核心面向 macOS / Windows，macOS 设置界面采用 SwiftUI / AppKit。
+**English** | [简体中文](README.zh-CN.md)
 
-**当前是 v0.1 内部验证工程。真实键盘主灯写入仍禁用。** 已提供状态聚合、模拟设备、只读 HID 枚举、Codex hooks 适配、OTLP/HTTP JSON 与 protobuf 接收、恢复日志、配色校验和贡献接口。原生 Mac 设置应用可在只读或模拟模式下使用。
+A local AI status lighting companion, built around a Zig core for macOS and Windows. Keyflux maps agent activity to keyboard lighting, with separate extension points for keyboards, AI integrations, and visual effects.
 
-Kick75 IO `19f5:1026` 的设备识别与灯光控制是不同能力。仓库没有把 Air75 主灯协议当作 Kick75 主灯实现，没有侧灯降级，也没有依据“无工具活动”猜测 Thinking。
+**Current stage: v0.1 internal validation. Physical keyboard lighting writes are disabled.** The running backend is read-only or explicitly simulated. Kick75 IO recognition does not establish main-backlight control, and real Codex desktop reasoning/output detection still needs validation.
 
-## 构建与运行
+## What works today
 
-需要 **Zig 0.17.0**。macOS 构建需要 Command Line Tools；Swift 界面需要 Swift 6+。运行时不需要 Python、Node.js 或浏览器。
+- A Zig state engine that aggregates sessions, correlates tool and approval events, and rejects stale events after a turn ends.
+- A simulated keyboard with write deduplication, a durable recovery journal, and recovery after forced termination.
+- Read-only NuPhy USB HID inventory, including Kick75 IO (`19f5:1026`).
+- A Codex hook adapter and an optional authenticated, loopback-only OTLP/HTTP receiver for JSON and protobuf logs.
+- A native macOS menu bar/settings app with per-state colors, brightness, unsaved-color previews, and theme import/export.
+- Versioned event, keyboard-model, and theme contracts with validators and contribution guidance.
+
+Thinking requires an explicit reasoning event. Silence, elapsed time, or the absence of tool calls do not establish that phase. Completion means a turn ended, not that its result is correct.
+
+## Platforms and stack
+
+| Component | Technology / current status |
+| --- | --- |
+| Core | Zig **0.17.0**, pinned in [.zigversion](.zigversion) |
+| HID transport | Vendored HIDAPI, BSD licensing option |
+| macOS | macOS 13+, Apple Silicon development build; SwiftUI + AppKit settings |
+| Windows | x64 core cross-compiles; physical-device behavior is unverified; GUI is planned |
+| Local IPC | Unix socket on macOS; user-restricted named pipe on Windows |
+
+Runtime operation needs no Python, Node.js, browser, product account, or model API key. Python is used only for development tools and tests. Basic USB inventory does not require input monitoring or accessibility permissions.
+
+## Quick start
+
+On macOS, install Zig 0.17.0 and Xcode Command Line Tools. Swift 6+ is needed only for the native settings app.
 
 ```sh
+git clone --branch dev https://github.com/zhanbodev/Keyflux.git
+cd Keyflux
 zig build -Doptimize=ReleaseSafe
 zig build test
 ./zig-out/bin/keyflux diagnose
-./zig-out/bin/keyflux serve --simulate --otlp-port 4318
+./zig-out/bin/keyflux replay examples/session.jsonl
+./zig-out/bin/keyflux serve --simulate
 ```
 
-另一个终端：
+`replay` uses fixed fixture timestamps and prints `working → thinking → output → complete`. `serve --simulate` stays in the foreground and changes only the simulated device.
+
+In another terminal, from the repository root:
 
 ```sh
 ./zig-out/bin/keyflux status
-./zig-out/bin/keyflux emit examples/start.json
-./zig-out/bin/keyflux emit examples/thinking.json
-./zig-out/bin/keyflux preview output
+./zig-out/bin/keyflux preview thinking
+./zig-out/bin/keyflux theme-set examples/theme.json
 ./zig-out/bin/keyflux theme-get
 ./zig-out/bin/keyflux stop
 ```
 
-示例事件的时间戳是固定回放数据。实时发送时用当前 Unix 纳秒时间和新的 event ID；完整顺序可直接离线运行：
+Default runtime data locations:
 
-```sh
-./zig-out/bin/keyflux replay examples/session.jsonl
-./zig-out/bin/keyflux validate-model models/nuphy-kick75-io.json
-./zig-out/bin/keyflux validate-theme examples/theme.json
-./zig-out/bin/keyflux gate examples/release-gates.json
-```
+| Platform | Directory |
+| --- | --- |
+| macOS | `~/Library/Application Support/Keyflux` |
+| Windows | `%LOCALAPPDATA%/Keyflux` |
 
-最后一个命令预期退出码为 **2**，因为真机和真实桌面阶段验收尚未完成。它检查自报材料完整性，不会解锁真实硬件驱动。
+Use `--state-dir PATH` on both the server and clients to isolate an instance. Keep Unix socket paths short. Do not use the dated replay fixtures as live adapter events; generate current Unix nanosecond timestamps and unique event IDs as described in the [extension specification](docs/EXTENSIONS.md#ai-event-adapters).
 
-运行时数据默认位于 macOS 的 `~/Library/Application Support/Keyflux` 或 Windows 的 `%LOCALAPPDATA%/Keyflux`。可以用 `--state-dir PATH` 隔离测试。Unix socket 路径长度有限，测试目录应保持简短。
+### macOS settings app
 
-## macOS 界面
+After building the core:
 
 ```sh
 swift run --package-path macos --scratch-path .build/macos KeyfluxApp --core "$PWD/zig-out/bin/keyflux"
 ```
 
-设置窗口提供核心启停、未保存配色的模拟预览、逐状态颜色/亮度、完成保持时间、配色导入导出。关闭窗口或退出设置应用不停止独立核心；通过“停止核心”或 CLI 明确停止并恢复模拟状态。设置窗口打开时刷新状态，关闭或最小化后停止刷新；灯光计时由核心处理。
+The current settings UI uses Simplified Chinese and can start a read-only or simulated core. Closing settings or quitting the settings app leaves the independent core running. Use **停止核心** (Stop core) or `keyflux stop` to stop it and restore the simulated device.
+
+To build a local development bundle:
 
 ```sh
 sh scripts/package-macos.sh
 ```
 
-生成 `dist/Keyflux.app`，仅使用本地临时签名，不能视为已公证发行包。尚未提供 Windows 图形界面、登录项或自动安装器。
+The result is `dist/Keyflux.app`, with an ad-hoc development signature. It is not an Apple-notarized distribution. Login items, an automatic installer, and a Windows GUI are not available yet.
 
-## Codex 接入验证
+### Windows core
+
+From a Windows checkout with Zig 0.17.0:
+
+```powershell
+zig build -Doptimize=ReleaseSafe
+.\zig-out\bin\keyflux.exe serve --simulate
+```
+
+Alternatively, cross-compile from the development host:
+
+```sh
+zig build -Dtarget=x86_64-windows-gnu -Doptimize=ReleaseSafe --prefix zig-out/windows
+```
+
+On Ubuntu or another development system, `zig test src/tests.zig` exercises the portable core. Building the macOS runtime requires an Apple SDK; use `-Dmacos-sdk=PATH` when cross-compiling. There is no Linux HID runtime.
+
+## Codex integration
+
+Generate reviewable configuration fragments:
 
 ```sh
 ./zig-out/bin/keyflux setup-codex "$PWD/zig-out/bin/keyflux"
 ```
 
-命令仅生成待审查的 hooks 与 OTel 配置片段，不更改 Codex 设置。按 [Codex 接入指南](docs/CODEX.md) 手动合并并信任 hooks 后，启动带 `--otlp-port` 的核心，再在真实 Codex 桌面任务中验证。已有 exporter 冲突时先停止配置，不覆盖现有路由。
+This command does not apply configuration. Follow the [Codex integration guide (Chinese)](docs/CODEX.md) to preserve existing hooks/exporter settings, review and trust the hooks, and test the actual desktop version.
 
-- Hooks 提供回合、工具、审批、取消和子任务生命周期。
-- `Thinking` / 输出只接受明确的流事件类型。OTLP 包缺少阶段字段、时间戳或关联信息时不猜测。
-- OTLP 接收只绑定 `127.0.0.1`，使用状态目录中的 `otlp-token` 验证 Bearer。不要分享该文件。
-- 请求体只存在于请求内存；正文、提示词和工具内容不进入状态文件或日志。
-- 当前没有自动检测 Codex 进程崩溃的可靠机制。显式 `source_lost` 可恢复灯效并标记未知；安静不等于来源断开。该限制属于真实接入验收项。
+Start the optional receiver with `keyflux serve --simulate --otlp-port 4318`. It listens only on `127.0.0.1`; the Bearer token is stored in the instance's `otlp-token` file. Keep that file private. The receiver retains structural event fields, not prompts, conversation text, or tool bodies. No telemetry is automatically uploaded by Keyflux.
 
-完整兼容边界及验证状态见 [验收记录](docs/VALIDATION.md)。
+Actual desktop event coverage, session correlation, export delay, and automatic source-crash detection remain validation work. Simulated input does not certify these capabilities.
 
-## 接口与贡献
+## Extend Keyflux
 
-- [键盘驱动与型号贡献](docs/specs/keyboard-v1.md)
-- [AI 事件与本地通信](docs/specs/agent-event-v1.md)
-- [配色与灯效接口](docs/specs/theme-v1.md)
-- [贡献流程](CONTRIBUTING.md)
-- [版本路线](docs/ROADMAP.md)
+Start with the **[Extension Interface Specification](docs/EXTENSIONS.md)** ([简体中文](docs/EXTENSIONS.zh-CN.md)). It covers:
 
-同协议设备提交型号描述、测试与证据；新协议设备提交编译注册的 Zig 驱动。当前不支持加载任意设备命令或外部动态库。
+| Extension | How to contribute |
+| --- | --- |
+| Keyboard model | A model descriptor, exact device/firmware evidence, and validation results |
+| Keyboard protocol | A compiled Zig driver using `KeyboardDriver`, tests, and recovery evidence |
+| AI integration | Any-language adapter emitting `AgentEvent v1` through the CLI/local IPC |
+| Color theme | `Theme v1` JSON, validated and imported without recompiling |
+| Animated effect | Planned renderer contract; per-key output and snake effects are not implemented |
 
-## 测试
+Descriptors do not execute arbitrary HID commands or automatically activate drivers. There is no external binary-plugin loader or stable plugin ABI. See [CONTRIBUTING.md (Chinese)](CONTRIBUTING.md) for the evidence checklist, and [schemas/](schemas) for machine-readable contracts.
+
+## Validation and roadmap
 
 ```sh
 zig build test
 python3 tests/integration.py zig-out/bin/keyflux
-zig build -Dtarget=x86_64-windows-gnu -Doptimize=ReleaseSafe --prefix zig-out/windows
+python3 scripts/check-vendor.py
+./zig-out/bin/keyflux validate-model models/nuphy-kick75-io.json
+./zig-out/bin/keyflux validate-theme examples/theme.json
+./zig-out/bin/keyflux gate examples/release-gates.json
 ```
 
-Python 仅用于开发测试。集成测试只访问临时目录、模拟设备和本机 socket / HTTP，不写入真实键盘或 Codex 配置。Windows 测试传入相应 `.exe` 路径。
+The last command is expected to exit **2**. It checks self-reported release evidence; it does not unlock a hardware driver. Tests use temporary state, local transports, and simulation. On Windows, pass the built `.exe` path to the integration test.
 
-Ubuntu 等系统可用 `zig test src/tests.zig` 验证纯 Zig 核心，也可交叉构建 Windows 核心；macOS 运行时构建需要 Apple SDK（可通过 `-Dmacos-sdk=PATH` 指定），不提供 Linux HID 运行时。
+The recorded simulated benchmark measured about 0.08% of one CPU core at idle, 11.6 MiB resident memory, and 7.8 ms CLI-to-simulated-ack P95. It does not measure real HID, Codex export delay, or physical lighting. See the [validation record (Chinese)](docs/VALIDATION.md) and [raw benchmark](docs/evidence/simulated-performance-20261026.json).
 
-MIT © 2026 Nuclx Tech。HIDAPI 使用 BSD 许可，来源和其他研究参考见 [第三方声明](THIRD_PARTY_NOTICES.md)。本项目与 NuPhy、OpenAI 无官方隶属关系。
+| Version | Milestone |
+| --- | --- |
+| v0.1 | Internal core, simulation, diagnostics, event probes, and extension contracts |
+| v0.2 | macOS Alpha after Kick75 main-light and real Codex phase validation |
+| v0.3 | Windows Alpha, native tray/settings, and physical-device validation |
+| v0.4 | Verified per-key layouts and snake animation mode |
+| v0.5 | Claude Code, DeepSeek/other harness adapters, and community devices |
+| v1.0 | Stable contracts, compatibility matrix, migration/recovery, signed releases |
+
+The initial hardware target is one wired USB Kick75 **NuPhyIO** device. QMK/VIA variants, Bluetooth/2.4 GHz lighting, ordinary ChatGPT chat monitoring, and side-light effects are outside the first release. See the [detailed roadmap (Chinese)](docs/ROADMAP.md).
+
+## License
+
+[MIT](LICENSE) © 2026 Nuclx Tech. HIDAPI uses its BSD licensing option. See [third-party notices](THIRD_PARTY_NOTICES.md) for provenance and licensing boundaries. Keyflux is not affiliated with NuPhy, OpenAI, Anthropic, or DeepSeek.

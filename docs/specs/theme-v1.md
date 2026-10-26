@@ -1,5 +1,7 @@
 # Theme v1 与灯效接口
 
+统一入口：[Extension Interface Specification](../EXTENSIONS.md)（[简体中文](../EXTENSIONS.zh-CN.md)）。本文保留主题接口的专项说明。
+
 状态：配色 JSON 已实现；动画接口为后续版本设计。
 
 ```json

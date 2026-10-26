@@ -1,5 +1,7 @@
 # AgentEvent v1 与本地通信
 
+统一入口：[Extension Interface Specification](../EXTENSIONS.md)（[简体中文](../EXTENSIONS.zh-CN.md)）。本文保留事件接口的专项说明。
+
 状态：草案。编码 UTF-8 JSON，`schema_version` 必须为 1。类型定义以 `src/event.zig` 为准，JSON Schema 位于 `schemas/agent-event-v1.schema.json`。
 
 ## 事件

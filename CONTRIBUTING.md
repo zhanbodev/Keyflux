@@ -1,5 +1,7 @@
 # 贡献 Keyflux
 
+扩展入口、版本规则与完整契约见 [Extension Interface Specification](docs/EXTENSIONS.md)（[简体中文](docs/EXTENSIONS.zh-CN.md)）。项目默认 [README 为英文](README.md)，[中文 README](README.zh-CN.md) 与之对应；公共接口变更应同步更新中英文说明。
+
 ## 新键盘型号
 
 1. 阅读 [KeyboardDriver v1](docs/specs/keyboard-v1.md)，确认具体硬件是 IO、QMK/VIA 还是其他版本。

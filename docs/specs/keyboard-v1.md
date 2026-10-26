@@ -1,5 +1,7 @@
 # KeyboardDriver v1 与型号描述
 
+统一入口：[Extension Interface Specification](../EXTENSIONS.md)（[简体中文](../EXTENSIONS.zh-CN.md)）。本文保留键盘接口的专项说明。
+
 状态：源码接口草案；固定 Zig 0.17.0 编译，不承诺动态库 ABI。
 
 ## 生命周期
