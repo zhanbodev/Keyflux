@@ -27,6 +27,7 @@ final class Model: ObservableObject {
         .init(id: "error", title: "错误", color: Color(hex: "EF4444"), brightness: 50),
     ]
     let executable: URL
+    let stateDirectory: String?
     private var daemon: Process?
 
     init() {
@@ -36,6 +37,19 @@ final class Model: ObservableObject {
         } else {
             executable = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/keyflux")
         }
+        if let i = args.firstIndex(of: "--state-dir"), i + 1 < args.count {
+            stateDirectory = args[i + 1]
+        } else {
+            stateDirectory = nil
+        }
+    }
+
+    private var instanceArguments: [String] {
+        stateDirectory.map { ["--state-dir", $0] } ?? []
+    }
+
+    private func callCore(_ args: [String], input: Data? = nil) async throws -> Data {
+        try await Self.invoke(executable, args + instanceArguments, input: input)
     }
 
     // Pipe/process work runs outside the main actor; every invocation has a
@@ -66,7 +80,7 @@ final class Model: ObservableObject {
 
     func refresh() async {
         do {
-            let data = try await Self.invoke(executable, ["status"])
+            let data = try await callCore(["status"])
             guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let result = root["result"] as? [String: Any],
                   let state = result["state"] as? [String: Any] else { return }
@@ -87,7 +101,7 @@ final class Model: ObservableObject {
         do {
             let process = Process()
             process.executableURL = executable
-            process.arguments = simulate ? ["serve", "--simulate"] : ["serve"]
+            process.arguments = (simulate ? ["serve", "--simulate"] : ["serve"]) + instanceArguments
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
             try process.run()
@@ -102,13 +116,13 @@ final class Model: ObservableObject {
     }
 
     func stop() async {
-        do { _ = try await Self.invoke(executable, ["stop"]); message = "" }
+        do { _ = try await callCore(["stop"]); message = "" }
         catch { message = error.localizedDescription }
         await refresh()
     }
     func loadTheme() async {
         do {
-            let data = try await Self.invoke(executable, ["theme-get"])
+            let data = try await callCore(["theme-get"])
             let root = try JSONSerialization.jsonObject(with: data) as? [String: Any]
             if let theme = root?["theme"] as? [String: Any] { applyTheme(theme) }
         } catch { message = error.localizedDescription }
@@ -129,7 +143,7 @@ final class Model: ObservableObject {
     }
     func save() async {
         do {
-            _ = try await Self.invoke(executable, ["theme-set"], input: themeData())
+            _ = try await callCore(["theme-set"], input: themeData())
             message = "已保存"
         } catch { message = error.localizedDescription }
     }
@@ -137,7 +151,7 @@ final class Model: ObservableObject {
         do {
             guard let signal = signals.first(where: { $0.id == id }) else { return }
             let draft = try JSONSerialization.data(withJSONObject: ["color": signal.color.hex, "brightness": Int(signal.brightness)])
-            _ = try await Self.invoke(executable, ["preview", id, "--signal-stdin"], input: draft)
+            _ = try await callCore(["preview", id, "--signal-stdin"], input: draft)
             message = "模拟预览 3 秒"
         }
         catch { message = error.localizedDescription }
@@ -149,7 +163,7 @@ final class Model: ObservableObject {
         do {
             let data = try Data(contentsOf: url)
             guard data.count <= 16384 else { throw CocoaError(.fileReadTooLarge) }
-            _ = try await Self.invoke(executable, ["theme-set"], input: data)
+            _ = try await callCore(["theme-set"], input: data)
             await loadTheme(); message = "已导入并保存"
         } catch { message = error.localizedDescription }
     }
@@ -242,7 +256,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func showSettings() {
         if window == nil {
             let created = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-            created.title = "Keyflux"; created.isReleasedWhenClosed = false; created.delegate = self
+            created.title = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Keyflux"
+            created.isReleasedWhenClosed = false; created.delegate = self
             created.contentView = NSHostingView(rootView: SettingsView(model: model))
             created.center(); window = created
         }

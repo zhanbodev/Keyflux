@@ -70,7 +70,25 @@ Use `--state-dir PATH` on both the server and clients to isolate an instance. Ke
 
 ### macOS settings app
 
-After building the core:
+For local development, build and open an isolated Debug session with one command:
+
+```sh
+./scripts/dev-macos.sh
+./scripts/dev-macos.sh --demo
+```
+
+The launcher builds `.build/macos-dev/Keyflux Dev.app`, starts a simulated core, and connects the UI to a separate development state directory printed in the terminal. `--demo` cycles synthetic working/reasoning/output/tool/approval/completion events. This is a local demonstration, not a Codex connection or physical-light test. Logs stay under `.build/macos-dev/logs`.
+
+Press Ctrl+C in that terminal or quit the menu bar app to stop the development session and its processes. Closing only the settings window keeps it running. Development settings persist between launches, separately from the default application data.
+
+```sh
+./scripts/dev-macos.sh --no-build       # Reuse the existing Debug bundle
+./scripts/dev-macos.sh --no-ui --demo   # Simulated core and demo, without a window
+./scripts/dev-macos.sh --check          # Build, run tests, and exit; requires Python 3
+./scripts/dev-macos.sh --help
+```
+
+Use `--state-dir /absolute/path` for a custom development instance. Stop the current launcher before starting another. For a manual Swift launch, after building the core:
 
 ```sh
 swift run --package-path macos --scratch-path .build/macos KeyfluxApp --core "$PWD/zig-out/bin/keyflux"

@@ -70,7 +70,25 @@ zig build test
 
 ### macOS 设置应用
 
-先构建核心，再运行：
+本地开发可以一条命令构建并打开隔离的 Debug 实例：
+
+```sh
+./scripts/dev-macos.sh
+./scripts/dev-macos.sh --demo
+```
+
+脚本构建 `.build/macos-dev/Keyflux Dev.app`，启动模拟核心，再让界面连接独立的开发数据目录；目录会打印在终端。`--demo` 循环演示合成的工作／思考／输出／工具／审批／完成事件，不代表已连接 Codex 或测试了实体灯光。日志位于 `.build/macos-dev/logs`。
+
+在该终端按 Ctrl+C，或从菜单栏退出开发应用，会结束本次开发会话并清理进程；仅关闭设置窗口则继续运行。开发配置在下次启动时保留，与默认应用数据分开保存。
+
+```sh
+./scripts/dev-macos.sh --no-build       # Reuse the existing Debug bundle
+./scripts/dev-macos.sh --no-ui --demo   # Simulated core and demo, without a window
+./scripts/dev-macos.sh --check          # Build, run tests, and exit; requires Python 3
+./scripts/dev-macos.sh --help
+```
+
+可用 `--state-dir /absolute/path` 指定开发实例目录，重复启动前先退出当前启动脚本。需要手动启动 Swift 界面时，先构建核心，再运行：
 
 ```sh
 swift run --package-path macos --scratch-path .build/macos KeyfluxApp --core "$PWD/zig-out/bin/keyflux"
