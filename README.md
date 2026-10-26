@@ -8,13 +8,13 @@
 
 A local AI status lighting companion, built around a Zig core for macOS and Windows. Keyflux maps agent activity to keyboard lighting, with separate extension points for keyboards, AI integrations, and visual effects.
 
-**Current stage: v0.1 internal validation. Physical keyboard lighting writes are disabled.** The running backend is read-only or explicitly simulated. Kick75 IO recognition does not establish main-backlight control, and real Codex desktop reasoning/output detection still needs validation.
+**Current stage: v0.1 internal validation. Manual Kick75 IO main-light tests work on macOS / USB / firmware 4.0.18.6 / Mac keyboard profile.** Static colors, exact configuration readback and original-effect restoration passed physical testing. The AI/UI backend remains read-only or simulated; real Codex desktop reasoning/output detection, write persistence and the full device lifecycle are still unverified.
 
 ## What works today
 
 - A Zig state engine that aggregates sessions, correlates tool and approval events, and rejects stale events after a turn ends.
 - A simulated keyboard with write deduplication, a durable recovery journal, and recovery after forced termination.
-- Read-only NuPhy USB HID inventory, including Kick75 IO (`19f5:1026`).
+- Read-only NuPhy USB HID inventory, plus an experimental Kick75 IO (`19f5:1026`) main-light driver with manual solid colors, exact readback and durable raw-state recovery.
 - A Codex hook adapter and an optional authenticated, loopback-only OTLP/HTTP receiver for JSON and protobuf logs.
 - A native macOS menu bar/settings app with per-state colors, brightness, unsaved-color previews, and theme import/export.
 - Versioned event, keyboard-model, and theme contracts with validators and contribution guidance.
@@ -67,6 +67,19 @@ Default runtime data locations:
 | Windows | `%LOCALAPPDATA%/Keyflux` |
 
 Use `--state-dir PATH` on both the server and clients to isolate an instance. Keep Unix socket paths short. Do not use the dated replay fixtures as live adapter events; generate current Unix nanosecond timestamps and unique event IDs as described in the [extension specification](docs/EXTENSIONS.md#ai-event-adapters).
+
+### Real Kick75 IO main lights (experimental)
+
+```sh
+./zig-out/bin/keyflux hardware-probe              # Read-only firmware and light configuration
+./scripts/test-kick75-macos.sh                    # Build, show three colors, verify and restore
+./zig-out/bin/keyflux hardware-solid '#06B6D4' 15
+./zig-out/bin/keyflux hardware-restore
+```
+
+Use USB, firmware **4.0.18.6** and the **Mac keyboard profile**; close other lighting clients. The manual test uses 15% brightness, leaves side lights untouched and restores on exit/interruption. A direct `hardware-solid` command stays active until `hardware-restore`. Its original-state journal lives in the default data directory; hardware mutation commands reject `--state-dir` to keep one capture across processes. After an abrupt termination, reconnect the same device/USB port and explicitly restore.
+
+The firmware quantizes RGB; the CLI reports the requested color and `color_quantized`, checks the exact requested or known quantized readback, and restores the original with an exact encoder check. See [protocol, recovery rules and remaining gates](docs/hardware/kick75.md) and [physical test evidence](docs/evidence/kick75-main-20261026.json). Windows/Win profile, flash persistence, sleep/unplug recovery and AI-driven physical changes are not enabled.
 
 ### macOS settings app
 

@@ -6,7 +6,7 @@
 
 1. 阅读 [KeyboardDriver v1](docs/specs/keyboard-v1.md)，确认具体硬件是 IO、QMK/VIA 还是其他版本。
 2. 先运行 `keyflux diagnose`。输出不包含序列号、系统设备路径或用户目录。
-3. 同协议设备以 `models/nuphy-kick75-io.json` 为模板，填写型号、接口和证据。未验证的能力必须保持 false。
+3. 同协议设备以 `models/nuphy-kick75-io.json` 为模板，填写型号、接口和证据。该示例已包含受限真机能力；复制后须清空不适用于新设备的固件、verified_on 和证据，未验证的能力必须保持 false。
 4. 不同协议新增 Zig 驱动，使用统一 `KeyboardDriver` vtable，并以模拟传输覆盖边界与失败路径；静态注册，禁止通过描述文件嵌入任意报文。
 5. 运行 `validate-model`、`zig build test` 和相关集成测试。真机试验与自动测试分开记录。
 6. 提交 PR 时附下列验收表；没有真机证据的设备只能保持 recognized 或 experimental。

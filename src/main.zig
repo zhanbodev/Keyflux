@@ -6,12 +6,17 @@ const themes = @import("theme.zig");
 const devices = @import("device.zig");
 const codex = @import("codex.zig");
 const otlp = @import("otlp.zig");
+const kick75 = @import("kick75.zig");
 const Allocator = std.mem.Allocator;
 const Value = std.json.Value;
 const max_request = 512 * 1024;
 const usage =
     \\Keyflux 0.1.0-dev — internal validation build
     \\  keyflux diagnose                       Read-only NuPhy HID inventory
+    \\  keyflux hardware-probe                 Read-only Kick75 firmware / light state
+    \\  keyflux hardware-solid '#00FFFF' 15    Manual main-light color; durable capture
+    \\  keyflux hardware-restore               Restore captured main-light effect
+    \\  keyflux hardware-verify-restore        Test exact current-state roundtrip; keep journal
     \\  keyflux serve [--simulate] [--otlp-port 4318]
     \\  keyflux emit [event.json]               AgentEvent v1 → running core
     \\  keyflux hook                           Codex hook JSON on stdin (always non-blocking semantics)
@@ -22,7 +27,8 @@ const usage =
     \\  keyflux gate evidence.json             Exit 2 until every release gate passes
     \\  keyflux setup-codex /absolute/keyflux   Print reviewable hook and OTel fragments
     \\  --state-dir PATH                       Isolated runtime data / IPC namespace
-    \\No real hardware writes are enabled. Simulation is explicitly labeled.
+    \\Hardware commands: experimental macOS / USB / Kick75 4.0.18.6 / Mac profile only.
+    \\They use the default state directory; AI events never drive physical lighting.
     \\
 ;
 
@@ -371,6 +377,26 @@ fn run(init: std.process.Init) !void {
         p.kf_print(buffer.ptr, @intCast(n), 0);
         return;
     }
+    if (eq(command, "hardware-probe")) {
+        var keyboard: kick75.Keyboard = .{};
+        try keyboard.connect();
+        defer keyboard.close();
+        try output(a, keyboard.info);
+        return;
+    }
+    if (eq(command, "hardware-solid") or eq(command, "hardware-restore") or eq(command, "hardware-verify-restore")) {
+        // A single canonical journal prevents nested ownership across state dirs.
+        if (directory != null or simulate or port != 0) return error.HardwareRequiresDefaultStateDirectory;
+        var light: ?devices.Lighting = null;
+        if (eq(command, "hardware-solid")) {
+            if (positional.items.len != 3) return error.ExpectedColorAndBrightness;
+            light = .{ .color = try themes.Color.parse(positional.items[1]), .brightness = try std.fmt.parseInt(u8, positional.items[2], 10) };
+            if (light.?.brightness > 100) return error.InvalidBrightness;
+        } else if (positional.items.len != 1) return error.UnexpectedArgument;
+        if (p.kf_init(null) != 0) return error.StateDirectoryUnavailable;
+        try hardware(a, light, eq(command, "hardware-verify-restore"));
+        return;
+    }
     if (std.mem.startsWith(u8, command, "validate-")) {
         const bytes = try input(init, file);
         if (eq(command, "validate-event")) {
@@ -444,6 +470,91 @@ fn run(init: std.process.Init) !void {
     const response = try request(a, payload);
     p.kf_print(response.ptr, response.len, 0);
     try checkResponse(a, response);
+}
+fn hardware(a: Allocator, light: ?devices.Lighting, roundtrip: bool) !void {
+    var keyboard: kick75.Keyboard = .{};
+    try keyboard.connect();
+    defer keyboard.close(); // Holds the per-user hardware lock throughout journal IO.
+    try kick75.writable(keyboard.info);
+    var journal: kick75.Journal = if (try readState(a, "kick75-recovery.json", 16384)) |bytes|
+        (try std.json.parseFromSlice(kick75.Journal, a, bytes, .{})).value
+    else blk: {
+        if (light == null) {
+            if (roundtrip) return error.RecoveryRecordRequired;
+            try output(a, .{ .ok = true, .restored = false, .reason = "no_capture" });
+            return;
+        }
+        _ = try keyboard.driver().capture();
+        break :blk .{ .original = keyboard.info, .expected = keyboard.info.state };
+    };
+    try journal.validate(keyboard.info);
+    if (roundtrip) {
+        try journal.guardSolid(keyboard.info);
+        journal.pending = true;
+        try writeState(a, "kick75-recovery.json", journal);
+        try keyboard.driver().restore(try kick75.captured(keyboard.info));
+        const after = try keyboard.readState();
+        if (!std.mem.eql(u8, &keyboard.info.state, &after)) return error.ReadbackMismatch;
+        journal.pending = false;
+        try writeState(a, "kick75-recovery.json", journal);
+        try output(a, .{ .ok = true, .current_capture_roundtrip = true, .state = after, .recovery_pending = true });
+        return;
+    }
+    if (light) |value| {
+        try journal.guardSolid(keyboard.info);
+        const target = try kick75.solidState(keyboard.info.state, value.color, value.brightness);
+        var wire = target[0..9].*;
+        wire[6..9].* = .{ value.color.r, value.color.g, value.color.b };
+        if (kick75.solidMatches(target, wire, keyboard.info.state)) {
+            try output(a, .{ .ok = true, .changed = false, .state = keyboard.info.state });
+            return;
+        }
+        // Commit the intended state BEFORE writing. An interrupted/ambiguous write
+        // requires explicit restore, never another color that could replace capture.
+        journal.expected = target;
+        journal.pending = true;
+        try writeState(a, "kick75-recovery.json", journal);
+        const after = hardwareSolid(&keyboard, value) catch |err| {
+            const observed = keyboard.readState() catch null;
+            const diagnostic = try encoded(a, .{ .operation = "set-main", .requested = target, .observed = observed, .code = @errorName(err), .rollback = "attempting" });
+            p.kf_print(diagnostic.ptr, diagnostic.len, 1);
+            p.kf_print("\n", 1, 1);
+            // A timeout may have applied the write. Attempt original restoration;
+            // retain the journal on any unverified result, never retry the setter.
+            keyboard.driver().restore(try kick75.captured(journal.original)) catch {
+                const message = "Hardware recovery pending: run keyflux hardware-restore after reconnecting.\n";
+                p.kf_print(message.ptr, message.len, 1);
+                return err;
+            };
+            if (p.kf_remove_file("kick75-recovery.json") != 0) return error.RecoveryRemoveFailed;
+            const message = "Original main state restored and verified.\n";
+            p.kf_print(message.ptr, message.len, 1);
+            return err;
+        };
+        journal.expected = after;
+        journal.pending = false;
+        try writeState(a, "kick75-recovery.json", journal);
+        try output(a, .{ .ok = true, .changed = true, .requested = value, .color_quantized = !std.mem.eql(u8, wire[6..9], after[6..9]), .configuration_readback = true, .visual_verification = "required", .side_preserved = true, .state = after, .recovery_pending = true });
+    } else {
+        if (!std.mem.eql(u8, journal.original.state[0..9], keyboard.info.state[0..9])) {
+            journal.pending = true;
+            try writeState(a, "kick75-recovery.json", journal);
+            try keyboard.driver().restore(try kick75.captured(journal.original));
+        }
+        const after = try keyboard.readState();
+        if (!std.mem.eql(u8, journal.original.state[0..9], after[0..9])) return error.ReadbackMismatch;
+        if (p.kf_remove_file("kick75-recovery.json") != 0) return error.RecoveryRemoveFailed;
+        try output(a, .{ .ok = true, .restored = true, .configuration_readback = true, .state = after, .side_preserved = true, .recovery_pending = false });
+    }
+}
+fn hardwareSolid(keyboard: *kick75.Keyboard, value: devices.Lighting) ![17]u8 {
+    const target = try kick75.solidState(keyboard.info.state, value.color, value.brightness);
+    var wire = target[0..9].*;
+    wire[6..9].* = .{ value.color.r, value.color.g, value.color.b };
+    try keyboard.driver().setSolid(value);
+    const after = try keyboard.readState();
+    if (!kick75.solidMatches(target, wire, after)) return error.ReadbackMismatch;
+    return after;
 }
 fn checkResponse(a: Allocator, bytes: []const u8) !void {
     const v = try std.json.parseFromSlice(Value, a, bytes, .{});

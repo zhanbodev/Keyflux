@@ -18,7 +18,7 @@ AI source → adapter → AgentEvent v1 → state aggregation
 | --- | --- | --- |
 | AI 适配器 | [AgentEvent Schema](../schemas/agent-event-v1.schema.json)、[event.zig](../src/event.zig) | CLI 或本地 IPC，语言不限 |
 | 键盘型号 | [Keyboard Schema](../schemas/keyboard-v1.schema.json)、[device.zig](../src/device.zig) | 提交经过校验的 JSON 与证据；没有根据型号文件自动发现驱动的机制 |
-| 键盘驱动 | [device.zig](../src/device.zig) 中的 `KeyboardDriver` | 编译进入核心的 Zig 源码；运行时目前只接入模拟后端 |
+| 键盘驱动 | [device.zig](../src/device.zig) 中的 `KeyboardDriver` | 编译进入核心的 Zig 源码；模拟守护进程和实验性 Kick75 手动 CLI 驱动 |
 | 配色主题 | [Theme Schema](../schemas/theme-v1.schema.json)、[theme.zig](../src/theme.zig) | JSON 校验、导入导出与热加载 |
 | 动态灯效 | EffectRenderer，规划于 v0.4 | 尚无 renderer 注册、帧提交或二进制插件加载器 |
 
@@ -163,7 +163,7 @@ macOS：实例目录中的 `control.sock`，目录权限 `0700`；每次连接�
 
 ### 型号描述文件
 
-型号贡献放在 `models/`。[现有 Kick75 描述](../models/nuphy-kick75-io.json) 是“已识别”模板，不证明相近型号支持同一套灯光协议。
+型号贡献放在 `models/`。[现有 Kick75 描述](../models/nuphy-kick75-io.json) 是绑定具体固件的实验性示例，不证明相近型号支持同一套灯光协议。
 
 | 字段 | 契约 |
 | --- | --- |
@@ -214,7 +214,9 @@ Identity 包含 model_id、firmware、profile；Lighting 包含字节 RGB 和 0�
 4. 完成声明的校验后才公布 acknowledged。传输 ACK 本身不证明实体灯光正确。
 5. 只恢复匹配设备／固件／档位，校验恢复结果；失败或拔线保留日志，不盲目重放结果不明的写入。
 
-**当前 `Capture { identity, main }` 与持久化日志格式仅用于模拟。** 它们不能完整保存真实原厂效果或调色板。真实驱动贡献必须先扩展／版本化 Capture 与恢复路径，保存完整原始协议状态，才能启用。当前没有公共 registerDriver API；通过发布门槛后仍需显式接入运行时并接受维护者审查。
+`Capture` 新增可选的编译期 `native` tagged union；`null` 保持既有模拟表示。`nuphy_s4_main_v1` variant 保存 `fingerprint: [64]u8` 和完整 `state: [17]u8`。只保存 RGB／亮度无法恢复原厂效果。新协议须新增受审查的源码 variant 和测试，不能把任意报告命令塞进 Capture 或型号文件。
+
+[Kick75 驱动](../src/kick75.zig) 实现同一 vtable。手动 CLI 使用独立的 `kick75-recovery.json`：显式 `schema_version: 1`、`format: kick75-s4-main-v1`、原始 probe／完整灯态、预期状态和 `pending` 事务标记。恢复须匹配原设备指纹、固件与档位；修改前先持久化 pending 记录，未完成事务禁止继续变色，必须显式恢复。实体灯效不复用模拟 Lease 的日志。守护进程与界面仍仅使用只读／模拟设备。详见[手动命令、精确量化与恢复规则、剩余门槛](hardware/kick75.md)。当前没有公共 registerDriver API，也没有实体灯光事件路由。
 
 错误包括 `UnsupportedCapability`、`DeviceDisconnected`、`ReadbackMismatch`、`IdentityMismatch`、`InvalidModel`、`UnsupportedReportSize`、`UnverifiedCapability`、`MissingEvidence`、`UnlistedFirmware`、`MissingLayout`、`InvalidLayout`、`DuplicateLed`。
 

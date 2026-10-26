@@ -56,8 +56,9 @@ cat > "$app/Contents/Info.plist" <<PLIST
 </dict></plist>
 PLIST
 cp vendor/hidapi/LICENSE-bsd.txt "$app/Contents/Resources/HIDAPI-LICENSE.txt"
+cp licenses/NuPhyLab-MIT.txt "$app/Contents/Resources/NuPhyLab-MIT.txt"
 cp LICENSE THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 codesign --force --sign - "$app/Contents/MacOS/keyflux"
 codesign --force --sign - "$app"
 codesign --verify --deep --strict "$app"
-printf '%s\n' "Built $app (local development signature, hardware gates remain locked)."
+printf '%s\n' "Built $app (local development signature; release gates remain unpassed)."

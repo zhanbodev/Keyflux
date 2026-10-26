@@ -73,6 +73,14 @@ class RuntimeTest(unittest.TestCase):
     def status(self):
         return json.loads(self.call("status").stdout)["result"]
 
+    def test_hardware_commands_reject_isolated_state_before_device_access(self):
+        for args in [("hardware-solid", "#06B6D4", "15"), ("hardware-restore",), ("hardware-verify-restore",)]:
+            result = self.call(*args, check=False)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(json.loads(result.stdout)["code"], "HardwareRequiresDefaultStateDirectory")
+        self.assertFalse((self.directory / "kick75-recovery.json").exists())
+        self.assertEqual(self.status()["backend"], "simulated")
+
     def test_event_ipc_theme_preview_and_restore(self):
         self.emit("turn_started")
         self.emit("thinking")

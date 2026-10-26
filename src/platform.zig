@@ -17,3 +17,8 @@ pub extern fn kf_close_client() void;
 pub extern fn kf_request(bytes: [*]const u8, n: usize, out: [*]u8, cap: usize) c_int;
 pub extern fn kf_shutdown() void;
 pub extern fn kf_hid_diagnose(out: [*]u8, cap: usize) c_int;
+pub extern fn kf_kick_open(identity: [*]u8, capacity: usize) c_int;
+pub extern fn kf_kick_close() void;
+pub extern fn kf_kick_descriptor(out: [*]u8, capacity: usize) c_int;
+pub extern fn kf_kick_exchange(frame: *const [64]u8, reply: *[64]u8, key: u8) c_int;
+pub extern fn kf_sleep_ms(milliseconds: c_uint) void;

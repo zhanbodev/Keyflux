@@ -18,7 +18,7 @@ AI source → adapter → AgentEvent v1 → state aggregation
 | --- | --- | --- |
 | AI adapter | [AgentEvent schema](../schemas/agent-event-v1.schema.json), [event.zig](../src/event.zig) | CLI or local IPC; any implementation language |
 | Keyboard model | [Keyboard schema](../schemas/keyboard-v1.schema.json), [device.zig](../src/device.zig) | Validated JSON contributed with evidence; no runtime auto-discovery from model files |
-| Keyboard driver | `KeyboardDriver` in [device.zig](../src/device.zig) | Compiled Zig source; only the simulated backend is wired into the runtime |
+| Keyboard driver | `KeyboardDriver` in [device.zig](../src/device.zig) | Compiled Zig source; simulated daemon plus an experimental manual Kick75 CLI driver |
 | Color theme | [Theme schema](../schemas/theme-v1.schema.json), [theme.zig](../src/theme.zig) | JSON validation, import, export, and hot reload |
 | Animated effect | EffectRenderer, planned for v0.4 | No renderer registration, frame submission, or binary-plugin loader yet |
 
@@ -163,7 +163,7 @@ The optional OTLP endpoint is a separate, authenticated Codex observation path. 
 
 ### Model descriptor
 
-Contribute models under `models/`. The [existing Kick75 descriptor](../models/nuphy-kick75-io.json) is a recognized-device template, not proof that a related model supports the same lighting protocol.
+Contribute models under `models/`. The [existing Kick75 descriptor](../models/nuphy-kick75-io.json) is an experimental, firmware-specific example, not proof that a related model supports the same lighting protocol.
 
 | Field | Contract |
 | --- | --- |
@@ -214,7 +214,9 @@ Contributors must implement these lifecycle guarantees:
 4. Publish acknowledgement only after the declared verification step. A transport ACK alone is not physical-light validation.
 5. Restore the matching device/firmware/profile, verify restoration, and retain the journal on failure or disconnection. Do not blindly replay an uncertain write.
 
-**Current `Capture { identity, main }` and durable journal format are simulation-only.** They cannot preserve a real factory effect or palette. A real driver contribution must extend/version the capture representation and recovery path with complete raw protocol state before it can be activated. There is no public `registerDriver` API; activation needs explicit runtime wiring and maintainer review after the release gates pass.
+`Capture` now adds an optional compiled `native` tagged union; `null` preserves the existing simulation representation. The `nuphy_s4_main_v1` variant contains `fingerprint: [64]u8` and complete `state: [17]u8`. RGB/brightness alone cannot restore a factory effect. New protocols must add reviewed source variants and tests; never put arbitrary report commands in captures or model files.
+
+The [Kick75 driver](../src/kick75.zig) implements the same vtable. Its manual CLI uses a separate `kick75-recovery.json` journal with explicit `schema_version: 1`, `format: kick75-s4-main-v1`, original probe/raw state, expected state and a `pending` transaction marker. The original fingerprint, firmware and profile must match; writes begin only after a durable pending record, and a pending transaction blocks further colors until explicit restore. The CLI never uses the simulated `Lease` journal for a physical effect. The daemon and UI still use read-only/simulation only. See [manual commands, exact quantization/recovery and remaining gates](hardware/kick75.md). There is no public `registerDriver` API or hardware event routing yet.
 
 Errors include `UnsupportedCapability`, `DeviceDisconnected`, `ReadbackMismatch`, `IdentityMismatch`, `InvalidModel`, `UnsupportedReportSize`, `UnverifiedCapability`, `MissingEvidence`, `UnlistedFirmware`, `MissingLayout`, `InvalidLayout`, and `DuplicateLed`.
 

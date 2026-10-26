@@ -9,7 +9,15 @@ pub const Capabilities = struct {
 };
 pub const Identity = struct { model_id: []const u8, firmware: []const u8, profile: []const u8 };
 pub const Lighting = struct { color: theme.Color, brightness: u8 };
-pub const Capture = struct { identity: Identity, main: Lighting };
+pub const Capture = struct {
+    identity: Identity,
+    main: Lighting,
+    // Source-level variants are compiled and reviewed, never supplied as HID
+    // commands by model files. null preserves the simulation capture contract.
+    native: ?union(enum) {
+        nuphy_s4_main_v1: struct { fingerprint: [64]u8, state: [17]u8 },
+    } = null,
+};
 
 /// Drivers are compiled into the registry; callers never receive raw HID access.
 pub const KeyboardDriver = struct {

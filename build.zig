@@ -15,7 +15,9 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const mod = b.createModule(.{ .root_source_file = b.path("src/main.zig"), .target = target, .optimize = optimize, .link_libc = true });
     mod.addCSourceFile(.{ .file = b.path("native/platform.c"), .flags = &.{ "-std=c11", "-Wall", "-Wextra" } });
+    mod.addCSourceFile(.{ .file = b.path("native/kick75.c"), .flags = &.{ "-std=c11", "-Wall", "-Wextra" } });
     mod.addIncludePath(b.path("vendor/hidapi/hidapi"));
+    mod.addIncludePath(b.path("vendor/hidapi/mac"));
     switch (target.result.os.tag) {
         .macos => {
             const sdk = b.option([]const u8, "macos-sdk", "Apple macOS SDK root") orelse if (builtin.os.tag == .macos) std.mem.trim(u8, b.run(&.{ "xcrun", "--sdk", "macosx", "--show-sdk-path" }), " \r\n") else @panic("Cross-compiling macOS requires -Dmacos-sdk=/path/to/SDK");

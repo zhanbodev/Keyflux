@@ -12,20 +12,37 @@
     "interface_number": 3
   },
   "firmware": {
-    "family": "unknown",
-    "versions": []
+    "family": "nuphy-io-s4",
+    "versions": [
+      "4.0.18.6"
+    ]
   },
-  "verified_on": [],
+  "verified_on": [
+    {
+      "platform": "macos",
+      "architecture": "aarch64",
+      "firmware": "4.0.18.6",
+      "profile": "mac",
+      "transport": "usb",
+      "zone": "main",
+      "evidence": [
+        "docs/evidence/kick75-main-20261026.json",
+        "docs/hardware/kick75.md"
+      ]
+    }
+  ],
   "layout": null,
   "capabilities": {
-    "solid_main": false,
+    "solid_main": true,
     "per_key": false,
-    "readback": false,
-    "restore": false,
+    "readback": true,
+    "restore": true,
     "max_frames_per_second": 0
   },
-  "verification": "recognized",
+  "verification": "experimental",
   "evidence": [
-    "https://github.com/Pixelmoss/codex-kick75-status-lights/blob/main/docs/PROTOCOL.md"
+    "docs/hardware/kick75.md",
+    "docs/evidence/kick75-main-20261026.json",
+    "https://github.com/Pixelmoss/codex-kick75-status-lights/blob/e32648ee86a8a729734060ac09bd7f8a1213876f/docs/PROTOCOL.md"
   ]
 }

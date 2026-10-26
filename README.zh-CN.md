@@ -8,13 +8,13 @@
 
 本地 AI 状态灯伴侣，使用面向 macOS / Windows 的 Zig 核心，将 Agent 活动映射为键盘灯光，并为键盘、AI 接入和灯效提供独立扩展入口。
 
-**当前阶段：v0.1 内部验证，实体键盘灯光写入仍禁用。** 运行后端为只读或明确标注的模拟设备。识别 Kick75 IO 不代表已验证主灯控制；真实 Codex 桌面的思考／输出阶段仍需实测。
+**当前阶段：v0.1 内部验证，已支持 macOS / USB / 固件 4.0.18.6 / Mac 档的 Kick75 IO 手动主灯测试。** 常亮变色、精确配置回读和原灯效恢复已通过实机验证。AI／界面后端仍使用只读或模拟设备；真实 Codex 桌面阶段、写入持久化与完整设备生命周期仍待验证。
 
 ## 当前能力
 
 - Zig 状态引擎：多会话汇总、工具与审批关联、结束回合的迟到事件隔离。
 - 模拟键盘：相同写入去重、持久化恢复日志、强制终止后的恢复。
-- NuPhy USB HID 只读枚举，包括 Kick75 IO（`19f5:1026`）。
+- NuPhy USB HID 只读枚举，以及实验性的 Kick75 IO（`19f5:1026`）主灯驱动：手动常亮、精确回读、完整原态持久恢复。
 - Codex hook 适配器，以及可选的本机鉴权 OTLP/HTTP 接收器，支持 JSON 和 protobuf 日志。
 - macOS 原生菜单栏／设置应用：逐状态颜色和亮度、未保存配色预览、主题导入导出。
 - 版本化的事件、键盘型号和主题契约，附校验工具及贡献指南。
@@ -67,6 +67,19 @@ zig build test
 | Windows | `%LOCALAPPDATA%/Keyflux` |
 
 服务端与客户端均可传入 `--state-dir PATH` 隔离实例。Unix socket 路径应保持简短。不要把固定日期的回放材料当成实时适配器事件；实时事件须生成当前 Unix 纳秒时间和唯一 event ID，见[扩展规范](docs/EXTENSIONS.zh-CN.md#ai-事件适配器)。
+
+### 真实 Kick75 IO 主灯（实验性）
+
+```sh
+./zig-out/bin/keyflux hardware-probe              # 只读固件和灯光配置
+./scripts/test-kick75-macos.sh                    # 构建、三色测试、校验并恢复
+./zig-out/bin/keyflux hardware-solid '#06B6D4' 15
+./zig-out/bin/keyflux hardware-restore
+```
+
+使用 USB、固件 **4.0.18.6** 和 **Mac 档**，先关闭其他灯控客户端。测试脚本使用 15% 亮度，保留侧灯，退出或中断时恢复原灯态。直接调用 `hardware-solid` 会保持颜色，直到调用 `hardware-restore`。原态日志写入默认数据目录；实体修改命令拒绝 `--state-dir`，保证多个进程共用同一份原态。进程被强制终止后，连接原键盘与同一 USB 端口，再显式恢复。
+
+固件会量化 RGB：CLI 同时报告请求值与 `color_quantized`，严格校验请求值或已知量化值，并在需要时通过逆向编码精确恢复原 RGB。详见[协议、恢复规则与剩余门槛](docs/hardware/kick75.md)及[实机证据](docs/evidence/kick75-main-20261026.json)。Windows／Win 档、Flash 持久化、睡眠／拔插恢复及 AI 自动实体灯控尚未开放。
 
 ### macOS 设置应用
 

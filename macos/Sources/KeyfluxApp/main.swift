@@ -86,7 +86,7 @@ final class Model: ObservableObject {
                   let state = result["state"] as? [String: Any] else { return }
             running = true
             phase = Self.labels[state["phase"] as? String ?? "unknown"] ?? "状态不可用"
-            backend = result["backend"] as? String == "simulated" ? "模拟设备 · 主灯写入尚未验证" : "只读模式 · 主灯写入尚未验证"
+            backend = result["backend"] as? String == "simulated" ? "模拟设备 · 实体灯光请使用硬件测试脚本" : "只读模式 · 实体灯光请使用硬件测试脚本"
             if let error = result["device_error"] as? String { message = error }
         } catch {
             running = false; phase = "未连接"; backend = "核心未运行"
