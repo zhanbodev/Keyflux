@@ -75,7 +75,11 @@ if (check) {
   });
   run('zig', ['build', 'test', '-j2']);
   const python = process.platform === 'win32' ? 'python' : 'python3';
-  for (const test of ['scripts/validate-keyboard-previews.py', 'tests/preview_layouts.py'])
+  for (const test of [
+    'scripts/validate-keyboard-previews.py',
+    'tests/preview_layouts.py',
+    'tests/codex_phase_probe.py',
+  ])
     run(python, [test]);
   run(python, ['tests/integration.py', binary]);
   console.log('Desktop and Zig checks passed.');

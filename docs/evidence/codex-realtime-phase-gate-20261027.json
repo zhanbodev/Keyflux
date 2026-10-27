@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-27",
+  "gate": "real Codex Desktop Thinking/output source",
+  "passed": false,
+  "code": "NoAcceptedRealtimeTransport",
+  "phase_callbacks_exist": true,
+  "production_phase_adapter_enabled": false,
+  "configuration_changed": false,
+  "model_requests_created": false,
+  "hardware_writes_by_probe": false,
+  "environment": {
+    "app": "ChatGPT",
+    "version": "26.1021.31345",
+    "build": "21828",
+    "runtime": "0.164.0-alpha.11.1",
+    "platform": "macos",
+    "architecture": "aarch64"
+  },
+  "public_source_reference": {
+    "tag": "rust-v0.164.0-alpha.11",
+    "commit": "fd591b6049c2745a2097baab41180fbdb19bdac0",
+    "exact_binary_commit_not_asserted": true
+  },
+  "diagnostic_probe": {
+    "schema_version": 1,
+    "candidate": "codex_feedback_sqlite",
+    "reference_commit": "fd591b6049c2745a2097baab41180fbdb19bdac0",
+    "realtime_lighting_accepted": false,
+    "reason": "BatchedDiagnosticLogIsNotARealtimeSubscription",
+    "reference_default_flush_ms": 10000,
+    "reference_batch_size": 512,
+    "phase_callbacks_exist": true,
+    "content_retained": false,
+    "configuration_changed": false,
+    "transport": {
+      "inspected": true,
+      "app_server_transport_counts": {
+        "stdio": 3
+      },
+      "subscription_tested": false
+    },
+    "structural_records": {
+      "reasoning/added": 125,
+      "reasoning/completed": 123,
+      "message/added": 43,
+      "message/completed": 43
+    },
+    "observation_seconds": 12.0,
+    "new_record_delay_ms": {
+      "samples": 5,
+      "max": 9523.929,
+      "includes_diagnostic_batching": true,
+      "not_model_to_light_latency": true
+    },
+    "root_session_liveness_checked": false
+  },
+  "other_observations": {
+    "first_20_second_prototype_probe": {
+      "aggregate_phases": [
+        "working",
+        "tool",
+        "thinking"
+      ],
+      "max_new_record_delay_ms": 10807,
+      "realtime_accepted": false
+    },
+    "second_20_second_prototype_probe": {
+      "aggregate_phases": [
+        "working",
+        "tool"
+      ],
+      "max_new_record_delay_ms": 2340,
+      "realtime_accepted": false
+    },
+    "public_control_socket_candidate_found": false,
+    "recent_host_text_log_correlated_phase_feed_found": false
+  },
+  "wireless": {
+    "codex_monitoring_requires_usb": false,
+    "current_keyflux_kick75_rgb_requires_usb": true,
+    "kick75_bluetooth_rgb_verified": false,
+    "kick75_2_4ghz_rgb_verified": false,
+    "air75_bluetooth_results_not_generalized_to_kick75": true
+  },
+  "privacy": "Only structural counts and transport classifications are retained. No conversation content, identifiers, credentials, arguments or private paths."
+}

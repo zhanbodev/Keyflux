@@ -135,6 +135,8 @@ Ubuntu 等开发系统可用 `zig test src/tests.zig` 验证纯 Zig 核心。mac
 
 当前 App 落盘的是已完成的 reasoning／message 片段，因此本 adapter 不宣称实时 Thinking／输出。Work、Chat 仍需分别接入。开发用 hooks／OTLP 工具继续保留，见[开发者指南](docs/CODEX.md)。
 
+[实时事件调查](docs/CODEX_REALTIME_PHASES.md)记录了真实回调、当前传输与日志批处理的阻塞，并附只读诊断工具；延迟诊断日志不用于驱动阶段颜色。
+
 ## 扩展 Keyflux
 
 从 **[扩展接口规范](docs/EXTENSIONS.zh-CN.md)**（[English](docs/EXTENSIONS.md)）开始：

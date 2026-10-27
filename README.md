@@ -135,6 +135,8 @@ The desktop App automatically observes existing local Codex sessions through a r
 
 Current recordings expose completed reasoning/message items, so this adapter does not claim real-time Thinking/output. Work and Chat remain separate integration work. Advanced hook/OTLP tools are still available for adapter development; see the [developer guide](docs/CODEX.md).
 
+The [real-time event audit](docs/CODEX_REALTIME_PHASES.md) records the available callbacks and the current transport/batching blocker. A read-only developer probe is included; delayed diagnostic logs are not used to drive phase colors.
+
 ## Extend Keyflux
 
 Start with the **[Extension Interface Specification](docs/EXTENSIONS.md)** ([简体中文](docs/EXTENSIONS.zh-CN.md)). It covers:

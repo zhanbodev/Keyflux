@@ -1,5 +1,7 @@
 # Codex 接入与精细阶段验证
 
+2026-10-27 实时性核对：当前 App 的真实阶段尚未接通。下文是开发用 hooks／OTLP 接口，不能据此宣称现有 App 会话已能导出实时阶段。已核实的本地 SQLite 阶段日志默认每 10 秒批量写入；当前 WebSocket OTel 实现只提供缺少线程关联的聚合指标。详见[实时事件可用性记录](CODEX_REALTIME_PHASES.md)。
+
 ## 支持边界
 
 本实现不调用模型 API、不读取账号凭据、不提交提示词，也不控制已有 Codex app-server。hooks 为短命 Zig CLI，向当前用户核心提交结构事件，stdout 始终为 `{}`，核心不存在或输入不兼容也不阻塞 Codex。

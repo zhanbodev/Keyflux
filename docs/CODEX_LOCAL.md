@@ -55,6 +55,10 @@ stops the owned core. No hooks or exporter configuration is installed.
 | Unknown | Index/event failure, lost writer, unsupported schema, limit exceeded or backlog |
 | Thinking/output | Not emitted by this adapter: current recordings contain completed reasoning/message items, not confirmed live phase starts/deltas |
 
+The [real-time availability audit](CODEX_REALTIME_PHASES.md) confirms that phase
+callbacks exist inside the App, but rejects the default 10-second diagnostic
+SQLite batching as a real-time lighting source. This adapter remains coarse.
+
 A tool's own failure does not certify that the whole AI run failed. Desktop-only
 approvals that never reach the local records cannot be observed by this adapter.
 The generic core still supports real streaming phases from other verified
