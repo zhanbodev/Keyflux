@@ -36,7 +36,7 @@ export async function installBridge(page: Page, failConnect = false) {
             switch (name) {
               case 'get_status':
                 return {
-                  result: state,
+                  result: { ...state, lighting: currentTheme.signals.thinking },
                   desktop: { hardware_writes: false, core_owned: false, instance_id: 'test' },
                 };
               case 'get_theme':
@@ -58,22 +58,6 @@ export async function installBridge(page: Page, failConnect = false) {
                   main: { mode: 'effect', mode_id: 2, brightness: 60, color: null },
                 };
                 return structuredClone(device);
-              case 'apply_main':
-                device = {
-                  ...device,
-                  recovery_pending: true,
-                  can_restore: true,
-                  main: { mode: 'solid', mode_id: 3, ...(args.signal as object) },
-                };
-                return structuredClone(device);
-              case 'restore_device':
-                device = {
-                  ...device,
-                  recovery_pending: false,
-                  can_restore: false,
-                  main: { mode: 'effect', mode_id: 2, brightness: 60, color: null },
-                };
-                return { ...structuredClone(device), restored: true };
               case 'disconnect_device':
                 device = { connected: false, writable: false, recovery_pending: false };
                 return structuredClone(device);

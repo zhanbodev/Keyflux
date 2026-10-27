@@ -174,31 +174,6 @@ fieldset:disabled .sv-plane {
   width: 100%;
   flex: 1;
 }
-.device-readback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 16px;
-  flex: none;
-  font-size: 10px;
-  color: #8b929d;
-  font-variant-numeric: tabular-nums;
-}
-.device-readback i {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  border: 1px solid #0001;
-}
-.device-readback strong {
-  font-weight: 500;
-  color: #606a78;
-}
-.device-readback .recovery-hint {
-  margin-left: 6px;
-  color: #69798c;
-}
 .keyboard {
   position: relative;
   width: min(100cqw, calc(100cqh * var(--board-ratio)));

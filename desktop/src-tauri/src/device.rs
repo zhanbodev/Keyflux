@@ -41,6 +41,9 @@ struct Session {
     identity: Option<String>,
     closing: bool,
     last_error: Option<String>,
+    following: bool,
+    follow_error: Option<String>,
+    last_signal: Option<Value>,
 }
 #[derive(Default)]
 pub struct Device {
@@ -102,7 +105,7 @@ fn public(session: &Session) -> Value {
         "recovery_pending": recovery.required,
         "recovery_required": recovery.required && (recovery.pending || !recovery.compatible || !session.restore_owned),
         "can_restore": false,
-        "last_error": session.last_error.as_ref().or(recovery.code.as_ref()),
+        "last_error": session.follow_error.as_ref().or(session.last_error.as_ref()).or(recovery.code.as_ref()),
     });
     if let Some(probe) = &session.probe {
         let f = &probe["firmware"];
@@ -185,7 +188,144 @@ fn restore_locked(session: &mut Session, hardware: &impl Hardware) -> Result<Val
     reply["restored"] = result["restored"].clone();
     Ok(reply)
 }
+fn apply_locked(
+    session: &mut Session,
+    hardware: &impl Hardware,
+    model: &str,
+    signal: &Value,
+) -> Result<Value, String> {
+    if session.closing {
+        return Err("AppClosing".into());
+    }
+    let probe = session.probe.as_ref().ok_or("NotConnected")?;
+    if !writable(probe) {
+        return Err("UnverifiedDevice".into());
+    }
+    if probe["model_id"].as_str() != Some(model) {
+        return Err("DeviceChanged".into());
+    }
+    // A prior capture must be repaired before enabling writes in this session.
+    if session.recovery.required
+        && (session.recovery.pending || !session.recovery.compatible || !session.restore_owned)
+    {
+        return Err("RecoveryRequired".into());
+    }
+    let identity = session.identity.as_deref().ok_or("InvalidDeviceIdentity")?;
+    let result = match hardware.apply(signal, identity) {
+        Ok(result) => result,
+        Err(error) => {
+            let _ = refresh(session, hardware);
+            return Err(error);
+        }
+    };
+    if !bytes(&result["state"], 17) {
+        return Err("InvalidDeviceReply".into());
+    }
+    if result["changed"] == true {
+        session.restore_owned = true;
+        session.recovery = Recovery {
+            required: true,
+            compatible: true,
+            ..Recovery::default()
+        };
+    }
+    session.probe.as_mut().ok_or("NotConnected")?["state"] = result["state"].clone();
+    session.last_error = None;
+    Ok(public(session))
+}
 impl Device {
+    pub fn start_following(&self, core: &impl Hardware) -> Result<Value, String> {
+        let mut session = self.session.lock().map_err(|_| "DeviceLockFailed")?;
+        if session.closing {
+            return Err("AppClosing".into());
+        }
+        if session.probe.is_none() {
+            return Err("NotConnected".into());
+        }
+        // Explicit Connect claims control after repairing any matching capture.
+        if session.recovery.required {
+            restore_locked(&mut session, core)?;
+        }
+        session.following = true;
+        session.follow_error = None;
+        session.last_signal = None;
+        Ok(public(&session))
+    }
+    pub fn follow_core(&self, core: &Core) {
+        let active = self
+            .session
+            .lock()
+            .is_ok_and(|s| s.following && s.probe.as_ref().is_some_and(writable) && !s.closing);
+        if !active {
+            return;
+        }
+        let status = core.call("status", None);
+        let _ = self.follow_status(core, status.as_ref().ok());
+    }
+    fn follow_status(
+        &self,
+        hardware: &impl Hardware,
+        status: Option<&Value>,
+    ) -> Result<(), String> {
+        let mut session = self.session.lock().map_err(|_| "DeviceLockFailed")?;
+        if session.closing || !session.following || session.probe.is_none() {
+            return Ok(());
+        }
+        let result: Result<(), String> = (|| {
+            let signal = match status {
+                Some(status) if status["result"]["backend"] == "read-only" => {
+                    let phase = status["result"]["state"]["phase"]
+                        .as_str()
+                        .ok_or("InvalidAgentStatus")?;
+                    match phase {
+                        "idle" | "unknown" => None,
+                        "working" | "thinking" | "output" | "tool" | "attention" | "complete"
+                        | "error" => {
+                            let signal = status["result"]
+                                .get("lighting")
+                                .filter(|s| !s.is_null())
+                                .ok_or("InvalidAgentStatus")?;
+                            Some(signal.clone())
+                        }
+                        _ => return Err("InvalidAgentStatus".into()),
+                    }
+                }
+                Some(_) => return Err("SimulationNotAllowed".into()),
+                None => None,
+            };
+            if signal == session.last_signal {
+                return Ok(());
+            }
+            if let Some(signal) = &signal {
+                apply_locked(&mut session, hardware, "nuphy-kick75-io", signal)?;
+            } else if session.restore_owned {
+                restore_locked(&mut session, hardware)?;
+            }
+            session.last_signal = signal;
+            Ok(())
+        })();
+        if let Err(error) = &result {
+            session.following = false; // Never retry ambiguous writes unattended.
+            session.follow_error = Some(error.clone());
+            if session.restore_owned
+                && matches!(
+                    error.as_str(),
+                    "InvalidAgentStatus" | "SimulationNotAllowed" | "InvalidSignal"
+                )
+            {
+                // An invalid source is unavailable, not a reason to leave an
+                // earlier active-phase color on the device indefinitely.
+                if let Err(recovery_error) = restore_locked(&mut session, hardware) {
+                    session.follow_error = Some(recovery_error);
+                }
+                session.last_signal = None;
+            }
+        }
+        result
+    }
+    pub fn closing(&self) -> bool {
+        self.session.lock().map(|s| s.closing).unwrap_or(true)
+    }
     pub fn require_connected(&self) -> Result<(), String> {
         let session = self.session.lock().map_err(|_| "DeviceLockFailed")?;
         if session.closing {
@@ -224,6 +364,7 @@ impl Device {
         }
         Ok(public(&session))
     }
+    #[cfg(test)]
     pub fn apply(
         &self,
         hardware: &impl Hardware,
@@ -231,45 +372,10 @@ impl Device {
         signal: &Value,
     ) -> Result<Value, String> {
         let mut session = self.session.lock().map_err(|_| "DeviceLockFailed")?;
-        if session.closing {
-            return Err("AppClosing".into());
-        }
-        let probe = session.probe.as_ref().ok_or("NotConnected")?;
-        if !writable(probe) {
-            return Err("UnverifiedDevice".into());
-        }
-        if probe["model_id"].as_str() != Some(model) {
-            return Err("DeviceChanged".into());
-        }
-        // A capture from another App lifetime must be restored explicitly.
-        if session.recovery.required
-            && (session.recovery.pending || !session.recovery.compatible || !session.restore_owned)
-        {
-            return Err("RecoveryRequired".into());
-        }
-        let identity = session.identity.as_deref().ok_or("InvalidDeviceIdentity")?;
-        let result = match hardware.apply(signal, identity) {
-            Ok(result) => result,
-            Err(error) => {
-                let _ = refresh(&mut session, hardware);
-                return Err(error);
-            }
-        };
-        if !bytes(&result["state"], 17) {
-            return Err("InvalidDeviceReply".into());
-        }
-        if result["changed"] == true {
-            session.restore_owned = true;
-            session.recovery = Recovery {
-                required: true,
-                compatible: true,
-                ..Recovery::default()
-            };
-        }
-        session.probe.as_mut().ok_or("NotConnected")?["state"] = result["state"].clone();
-        session.last_error = None;
-        Ok(public(&session))
+        apply_locked(&mut session, hardware, model, signal)
     }
+
+    #[cfg(test)]
     pub fn restore(&self, hardware: &impl Hardware) -> Result<Value, String> {
         let mut session = self.session.lock().map_err(|_| "DeviceLockFailed")?;
         if session.closing {
@@ -350,6 +456,160 @@ mod tests {
                 json!({"required":false,"pending":false,"compatible":false,"code":null});
             Ok(json!({"restored":true,"state":probe()["state"]}))
         }
+    }
+    fn agent_status(phase: &str, color: &str) -> Value {
+        json!({"result":{"backend":"read-only","state":{"phase":phase},"lighting":{"color":color,"brightness":15}}})
+    }
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn default_follow_deduplicates_signals_and_restores_on_idle_and_source_loss() {
+        let hardware = Fake::default();
+        let device = Device::default();
+        device.connect_hardware(&hardware).unwrap();
+        device.start_following(&hardware).unwrap();
+        let thinking = agent_status("thinking", "#06B6D4");
+        device.follow_status(&hardware, Some(&thinking)).unwrap();
+        device.follow_status(&hardware, Some(&thinking)).unwrap();
+        assert_eq!(
+            hardware
+                .calls
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|s| *s == "apply")
+                .count(),
+            1
+        );
+        // Saving a changed palette changes the core-resolved signal, even if
+        // the active phase stays the same. Repeated polls still write once.
+        device
+            .follow_status(&hardware, Some(&agent_status("thinking", "#18C7AA")))
+            .unwrap();
+        assert_eq!(
+            hardware
+                .calls
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|s| *s == "apply")
+                .count(),
+            2
+        );
+        device
+            .follow_status(&hardware, Some(&agent_status("idle", "#000000")))
+            .unwrap();
+        device
+            .follow_status(&hardware, Some(&agent_status("idle", "#000000")))
+            .unwrap();
+        assert_eq!(
+            hardware
+                .calls
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|s| *s == "restore")
+                .count(),
+            1
+        );
+        device
+            .follow_status(&hardware, Some(&agent_status("output", "#8B5CF6")))
+            .unwrap();
+        device.follow_status(&hardware, None).unwrap();
+        assert_eq!(
+            hardware
+                .calls
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|s| *s == "restore")
+                .count(),
+            2
+        );
+    }
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn follow_repairs_previous_capture_but_never_retries_an_ambiguous_write() {
+        let hardware = Fake {
+            ambiguous: true,
+            ..Fake::default()
+        };
+        hardware.snapshot.lock().unwrap()["recovery"] =
+            json!({"required":true,"pending":true,"compatible":true,"code":null});
+        let device = Device::default();
+        device.connect_hardware(&hardware).unwrap();
+        device.start_following(&hardware).unwrap();
+        assert_eq!(hardware.calls.lock().unwrap().last().unwrap(), "restore");
+        let status = agent_status("working", "#3B82F6");
+        assert_eq!(
+            device.follow_status(&hardware, Some(&status)).unwrap_err(),
+            "DeviceDisconnected"
+        );
+        device.follow_status(&hardware, Some(&status)).unwrap();
+        assert_eq!(
+            hardware
+                .calls
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|s| *s == "apply")
+                .count(),
+            1
+        );
+        assert_eq!(
+            device.status(&hardware).unwrap()["last_error"],
+            "DeviceDisconnected"
+        );
+    }
+    #[test]
+    fn follow_rejects_simulated_sources_and_does_nothing_before_connect() {
+        let hardware = Fake::default();
+        let device = Device::default();
+        let mut status = agent_status("thinking", "#06B6D4");
+        device.follow_status(&hardware, Some(&status)).unwrap();
+        assert!(hardware.calls.lock().unwrap().is_empty());
+        device.connect_hardware(&hardware).unwrap();
+        device.start_following(&hardware).unwrap();
+        status["result"]["backend"] = json!("simulated");
+        assert_eq!(
+            device.follow_status(&hardware, Some(&status)).unwrap_err(),
+            "SimulationNotAllowed"
+        );
+        assert!(hardware
+            .calls
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|s| s == "inspect"));
+    }
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn invalid_source_restores_an_owned_color_before_pausing() {
+        let hardware = Fake::default();
+        let device = Device::default();
+        device.connect_hardware(&hardware).unwrap();
+        device.start_following(&hardware).unwrap();
+        device
+            .follow_status(&hardware, Some(&agent_status("thinking", "#06B6D4")))
+            .unwrap();
+        assert_eq!(
+            device
+                .follow_status(&hardware, Some(&agent_status("invalid", "#06B6D4")))
+                .unwrap_err(),
+            "InvalidAgentStatus"
+        );
+        let state = device.status(&hardware).unwrap();
+        assert_eq!(state["recovery_pending"], false);
+        assert_eq!(state["last_error"], "InvalidAgentStatus");
+        assert_eq!(
+            hardware
+                .calls
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|s| *s == "restore")
+                .count(),
+            1
+        );
     }
     #[test]
     fn unplug_locks_session_and_requires_explicit_reconnection() {
@@ -513,6 +773,69 @@ mod tests {
                 .unwrap_err(),
             "AppClosing"
         );
+    }
+    #[test]
+    #[ignore = "Requires an explicitly authorized USB Kick75 Mac-profile hardware test"]
+    fn manual_follow_real_core_stream_and_restore() {
+        use std::io::Write;
+        use std::process::{Command, Stdio};
+        let binary = std::env::var_os("KEYFLUX_TEST_CORE").expect("built Zig CLI");
+        let directory = std::path::PathBuf::from("/private/tmp")
+            .join(format!("keyflux-follow-hardware-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let core = Core::new(binary.clone().into(), Some(directory.clone()), false);
+        core.ensure().unwrap();
+        let device = Device::default();
+        struct Guard<'a>(&'a Device, &'a Core);
+        impl Drop for Guard<'_> {
+            fn drop(&mut self) {
+                let _ = self.0.shutdown(self.1);
+                self.1.stop_owned();
+            }
+        }
+        let guard = Guard(&device, &core);
+        let before = core.probe_device().unwrap();
+        device.connect(&core).unwrap();
+        device.start_following(&core).unwrap();
+        core.call("theme-set", Some(&json!({"signals":{"working":{"color":"#06B6D4","brightness":15},"output":{"color":"#8B5CF6","brightness":15}}}))).unwrap();
+        let emit = |kind: &str| {
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos() as u64;
+            let event = json!({"schema_version":1,"provider":"keyflux.hardware-verification","session_id":"hardware-follow-test","turn_id":"controlled-turn","event_id":format!("{kind}-{timestamp}"),"timestamp_ns":timestamp,"kind":kind});
+            let mut child = Command::new(&binary)
+                .args(["emit", "--state-dir"])
+                .arg(&directory)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()
+                .unwrap();
+            child
+                .stdin
+                .take()
+                .unwrap()
+                .write_all(&serde_json::to_vec(&event).unwrap())
+                .unwrap();
+            assert!(child.wait_with_output().unwrap().status.success());
+        };
+        for kind in ["turn_started", "output"] {
+            emit(kind);
+            device.follow_core(&core);
+            let state = device.status(&core).unwrap();
+            assert_eq!(state["main"]["mode"], "solid");
+            assert_eq!(state["main"]["brightness"], 15);
+            assert!(state["last_error"].is_null());
+            assert_eq!(core.probe_device().unwrap()["state"], state["state"]);
+            device.follow_core(&core); // Repeated snapshots do not reapply.
+        }
+        emit("turn_cancelled");
+        device.follow_core(&core);
+        assert_eq!(core.probe_device().unwrap()["state"], before["state"]);
+        assert_eq!(device.status(&core).unwrap()["recovery_pending"], false);
+        drop(guard);
+        std::fs::remove_dir_all(directory).unwrap();
+        println!("Controlled real-core events -> automatic USB main colors -> exact original restoration passed. This is not a real Codex export test.");
     }
     #[test]
     #[ignore = "Requires an explicitly authorized USB Kick75 Mac-profile hardware test"]

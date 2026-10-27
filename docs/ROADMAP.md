@@ -2,14 +2,14 @@
 
 | 版本 | 交付内容 | 放行条件 |
 |---|---|---|
-| v0.1 内部验证 | Zig 双平台核心、模拟设备、只读 HID、hooks/OTLP 探针、三份规范、验证工具 | 真机主灯及桌面精细事件证据齐全后才可进入用户版 |
-| v0.2 macOS Alpha | 主灯常亮、Thinking/输出、会话汇总、Tauri 2 原生托盘与 React/TS 共享设置界面、预览与配色、可审查安装卸载、恢复 | Kick75 与真实 Codex 桌面联调通过 |
+| v0.1 内部验证 | Zig 双平台核心、模拟设备、只读 HID、事件通道验证、三份规范、验证工具；优先验证 ChatGPT App 的 Work/Chat/Codex | 真机主灯及桌面精细事件证据齐全后才可进入用户版 |
+| v0.2 macOS Alpha | 主灯常亮、Thinking/输出、会话汇总、Tauri 2 原生托盘与 React/TS 共享设置界面、预览与配色、可审查安装卸载、恢复 | Kick75 与 ChatGPT App 的 Work/Chat/Codex 按能力矩阵分别通过联调 |
 | v0.3 Windows Alpha | 相同 Zig 核心、Tauri 2 托盘与共享设置界面、named pipe/HID 实机、安装卸载、睡眠恢复 | Windows x64 实机达到同等验收 |
 | v0.4 灵动模式 | 逐键验证、物理映射、蛇形路径、速度与尾迹、renderer 示例 | 每个开放型号证明持续写入与恢复可靠 |
 | v0.5 多 AI / 社区 | Claude Code adapter、DeepSeek 等 Harness 事件桥、更多贡献型号 | 每个来源提供能力矩阵、固定版本和回放测试 |
 | v1.0 稳定 | 冻结 v1 接口、兼容目录、迁移恢复工具、签名分发、完整贡献文档 | 设备 / 系统矩阵通过，限制公开 |
 
-侧灯不在以上版本必交范围。普通 ChatGPT、蓝牙、2.4 GHz 灯控不属于首发承诺。DeepSeek 接入实际运行它的 Harness，不把模型 API 当作其他应用的状态监听器。
+侧灯不在以上版本必交范围。首版以 ChatGPT 桌面 App 的 Work、Chat、Codex 为目标，不以 CLI 为用户前提；三入口分别验证，未验证的阶段不得宣称兼容。蓝牙、2.4 GHz 灯控不属于首发承诺。详见 [App 接入范围](CHATGPT_DESKTOP.md)。DeepSeek 接入实际运行它的 Harness，不把模型 API 当作其他应用的状态监听器。
 
 ## 性能预算
 

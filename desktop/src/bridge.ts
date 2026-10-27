@@ -1,7 +1,12 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { parseTheme, type Theme } from './theme';
 export interface Status {
-  result: { backend: string; state: { phase: string }; theme_schema_versions: number[] };
+  result: {
+    backend: string;
+    state: { phase: string };
+    lighting?: { color: string; brightness: number } | null;
+    theme_schema_versions: number[];
+  };
   desktop: { core_owned: boolean; hardware_writes: boolean; instance_id: string };
 }
 export interface Device {

@@ -8,7 +8,7 @@
 
 本地 AI 状态灯伴侣，使用面向 macOS / Windows 的 Zig 核心，将 Agent 活动映射为键盘灯光，并为键盘、AI 接入和灯效提供独立扩展入口。
 
-**当前阶段：v0.1 内部验证，已支持 macOS / USB / 固件 4.0.18.6 / Mac 档的 Kick75 IO 手动主灯测试。** 常亮变色、精确配置回读和原灯效恢复已通过实机验证。自动 AI 灯控仍未放行；桌面 App 现支持 macOS 下经验证的手动 USB 主灯控制；真实 Codex 桌面阶段、写入持久化与完整设备生命周期仍待验证。
+**当前阶段：v0.1 内部验证，已支持 macOS / USB / 固件 4.0.18.6 / Mac 档的 Kick75 IO 手动主灯测试。** 常亮变色、精确配置回读和原灯效恢复已通过实机验证。App 连接后已启用实验性真实事件跟随；桌面 App 现支持 macOS 下经验证的手动 USB 主灯控制；真实 Codex 桌面阶段、写入持久化与完整设备生命周期仍待验证。
 
 ## 当前能力
 
@@ -81,7 +81,7 @@ zig build test
 
 使用 USB、固件 **4.0.18.6** 和 **Mac 档**，先关闭其他灯控客户端。测试脚本使用 15% 亮度，保留侧灯，退出或中断时恢复原灯态。直接调用 `hardware-solid` 会保持颜色，直到调用 `hardware-restore`。原态日志写入默认数据目录；实体修改命令拒绝 `--state-dir`，保证多个进程共用同一份原态。进程被强制终止后，连接原键盘与同一 USB 端口，再显式恢复。
 
-固件会量化 RGB：CLI 同时报告请求值与 `color_quantized`，严格校验请求值或已知量化值，并在需要时通过逆向编码精确恢复原 RGB。详见[协议、恢复规则与剩余门槛](docs/hardware/kick75.md)及[实机证据](docs/evidence/kick75-main-20261026.json)。Windows／Win 档、Flash 持久化、睡眠／拔插恢复及 AI 自动实体灯控尚未开放。
+固件会量化 RGB：CLI 同时报告请求值与 `color_quantized`，严格校验请求值或已知量化值，并在需要时通过逆向编码精确恢复原 RGB。详见[协议、恢复规则与剩余门槛](docs/hardware/kick75.md)及[实机证据](docs/evidence/kick75-main-20261026.json)。Windows／Win 档、Flash 持久化、睡眠／拔插恢复及真实 ChatGPT App 事件渠道仍未通过发布验收。
 
 ### 共享桌面设置应用
 
@@ -94,11 +94,11 @@ node desktop/scripts/dev.mjs
 
 脚本在独立开发目录启动**真实只读核心**。用户点击“连接键盘”后，才只读识别实际 USB 设备，启动时不自动连接。连接成功前只显示中性键盘轮廓和连接入口，配色、亮度、导入导出、保存及灯控操作均锁定。正式前端没有模拟设备或浏览器 fixture 入口。
 
-连接后，窗口可见时约每 4.5 秒回读一次 USB；检测到拔出立即锁定控制，并停止设备探测，用户再次点击连接后才重新识别。断开前的配色草稿会保留。“设备回读”显示实际主灯模式、亮度及常亮色，与正在编辑的配色草稿分开。App 重启后若发现原态记录，必须先点击“恢复灯效”再改色；不匹配或损坏的恢复记录会阻止写入。
+连接后，窗口可见时约每 4.5 秒回读一次 USB；检测到拔出立即锁定控制，并停止设备探测，用户再次点击连接后才重新识别。断开前的配色草稿会保留。界面不展示回读、原态保存等诊断字段。连接后在后台默认跟随真实状态；编辑配色后点击“保存”，“默认”直接保存默认配色。匹配的异常恢复记录在连接时内部恢复；不匹配或损坏的记录仍阻止写入。
 
 键盘区无卡片背景、不悬浮、不允许选区或选键。下方白色控制台在支持的窗口尺寸内一屏显示，左侧纵向切换“主键区／条形灯”，状态列表去除 HEX，右侧使用自绘饱和度/明度、色相条、RGB、预设和最近颜色。下拉菜单由 App 绘制。主灯呈现为彩色键帽轮廓而非整键填色；两侧虚构灰条已删除，仅在启用条形灯预览时显示右侧小开口示意。
 
-已验证的 USB Kick75／macOS／Mac 档／4.0.18.6 可点击“应用到键盘”，通过现有 Zig 驱动捕获原态、严格回读；“恢复灯效”恢复原主灯配置。断开或正常退出会恢复由该 App 接管的主灯。连接、编辑或保存主题均不自动写入实体颜色。未知固件与 Windows 保持只读；条形灯仍仅配置和屏幕预览。“跟随状态”目前驱动预览，不会自动写入 HID。
+已验证的 USB Kick75／macOS／Mac 档／4.0.18.6 连接后开始后台跟随，不再需要“跟随状态／应用到键盘／恢复灯效”按钮。保存配色后，真实活动状态使用新的颜色；选择状态或拖动配色只改变预览。空闲、明确来源失效、断开或正常退出时内部恢复原灯效。Windows、未知固件与条形灯仍不写入。首版优先接入 ChatGPT 桌面 App 的 Work、Chat、Codex，不要求用户操作 CLI；三条真实事件渠道尚待分别验证，见[桌面 App 接入范围](docs/CHATGPT_DESKTOP.md)。连接键盘不等于已收到 App 状态。
 
 ```sh
 ./scripts/dev-macos.sh --no-build       # 复用已构建的 Zig sidecar
@@ -108,7 +108,7 @@ node desktop/scripts/dev.mjs
 sh scripts/package-macos.sh            # 本地 release .app
 ```
 
-关闭设置窗口保留托盘、核心及手动应用的主灯颜色；从托盘重新打开。退出 App 或在启动终端按 Ctrl+C 结束受监督的开发会话。强制终止后保留恢复日志，接回原键盘及 USB 端口后点击“恢复灯效”。产物位于 `desktop/src-tauri/target/{debug,release}/bundle/macos/Keyflux.app`，使用本地 ad-hoc 签名，未 Apple 公证。
+关闭设置窗口保留托盘、核心及手动应用的主灯颜色；从托盘重新打开。退出 App 或在启动终端按 Ctrl+C 结束受监督的开发会话。强制终止后保留恢复日志，接回原键盘及 USB 端口后点击连接以执行内部恢复。产物位于 `desktop/src-tauri/target/{debug,release}/bundle/macos/Keyflux.app`，使用本地 ad-hoc 签名，未 Apple 公证。
 
 [桌面开发与命令边界](docs/DESKTOP.md)提供详细说明。旧 `macos/` SwiftUI 仅保留为历史参考。NuPhy 美术为经哈希校验且不入 Git 的本地缓存，**不属于 MIT 内容，也未完成公开分发授权**，见[第三方声明](THIRD_PARTY_NOTICES.md#nuphy-io-preview-artwork)。
 
@@ -183,7 +183,7 @@ python3 scripts/check-vendor.py
 | v0.5 | Claude Code、DeepSeek 等 Harness 适配器和社区设备 |
 | v1.0 | 稳定接口、兼容矩阵、迁移恢复和签名发行 |
 
-首发硬件目标是一把 USB 有线 Kick75 **NuPhyIO**。QMK/VIA 版本、蓝牙／2.4 GHz 灯控、普通 ChatGPT 对话监听和侧灯效果不计入首发范围。完整路线见 [ROADMAP](docs/ROADMAP.md)。
+首发硬件目标是一把 USB 有线 Kick75 **NuPhyIO**。首版应用接入目标为 ChatGPT 桌面 App 的 Work、Chat、Codex，三条渠道分别验收；QMK/VIA 版本、蓝牙／2.4 GHz 灯控和侧灯效果仍不计入首发范围。完整路线见 [ROADMAP](docs/ROADMAP.md)。
 
 ## 许可
 

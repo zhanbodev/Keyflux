@@ -11,8 +11,6 @@
     "allow-export-theme",
     "allow-get-device",
     "allow-connect-device",
-    "allow-disconnect-device",
-    "allow-restore-device",
-    "allow-apply-main"
+    "allow-disconnect-device"
   ]
 }

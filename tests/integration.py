@@ -98,6 +98,18 @@ class RuntimeTest(unittest.TestCase):
             self.assertTrue(all(pool.map(read, range(24))))
         self.assertEqual(self.status()["backend"], "simulated")
 
+    def test_status_exposes_core_resolved_lighting_without_fabricated_phases(self):
+        self.assertIsNone(self.status()["lighting"])
+        self.emit("turn_started")
+        self.assertEqual(self.status()["lighting"], {"color":"#3B82F6", "brightness":50})
+        self.emit("thinking")
+        self.assertEqual(self.status()["lighting"], {"color":"#06B6D4", "brightness":50})
+        self.call("theme-set", data=json.dumps({"signals":{"thinking":{"color":"#18C7AA","brightness":15}}}))
+        self.assertEqual(self.status()["lighting"], {"color":"#18C7AA", "brightness":15})
+        self.emit("source_lost")
+        self.assertEqual(self.status()["state"]["phase"], "unknown")
+        self.assertIsNone(self.status()["lighting"])
+
     def test_hardware_commands_reject_isolated_state_before_device_access(self):
         for identity in ["too-short", "G" * 64]:
             result = self.call("hardware-solid", "#06B6D4", "15", "--expect-device", identity, check=False)

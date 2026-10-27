@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-27",
+  "scope": "Native icon refinements, simplified default-follow UI and App-first integration scope",
+  "software": {
+    "theme_and_color_tests": 16,
+    "rust_tests": 17,
+    "zig_tests": 33,
+    "ipc_integration_tests": 11,
+    "layout_contract_tests": 3,
+    "playwright_tests": 8,
+    "typescript_vite": "passed",
+    "cargo_clippy": "passed",
+    "windows_zig_cross_compile": "passed"
+  },
+  "hardware": {
+    "model_id": "nuphy-kick75-io",
+    "platform": "macos",
+    "architecture": "aarch64",
+    "firmware": "4.0.18.6",
+    "profile": "Mac",
+    "connection": "USB",
+    "controlled_event_provider": "keyflux.hardware-verification",
+    "initial_attempt": "DeviceNotFound; no HID mutation",
+    "retry_after_user_reconnect": "passed",
+    "real_read_only_zig_core_to_automatic_usb_colors": "passed",
+    "independent_configuration_readback": "passed",
+    "duplicate_snapshot_deduplication": "passed",
+    "idle_restoration": "exact original 17-byte match",
+    "side_unchanged": true,
+    "real_chatgpt_app_export_test": false
+  },
+  "app_integration": {
+    "target_surfaces": [
+      "work",
+      "chat",
+      "codex"
+    ],
+    "adapters_verified": [],
+    "real_receiver_observation": {
+      "records": 0,
+      "reasoning": 0,
+      "output": 0,
+      "tracked_sessions": 0
+    },
+    "temporary_cli_configuration": "rolled back after receipt/hash verification; original files restored",
+    "cli_required_for_users": false,
+    "agent_ui_inspection": "Computer-use tool denied com.openai.codex; no alternate UI-reading bypass used"
+  },
+  "visual": {
+    "macos_menu_icon": "White-alpha 26x18pt native template, 4x raster",
+    "app_icon_master": "assets/branding/keyflux-app-icon-v3.png",
+    "generator": "built-in image_gen; original icon enlarged on transparent square; prompt in sibling prompt file",
+    "native_keyflux_window": "Captured and inspected locally; no manual Apply/Restore/Follow controls or readback row",
+    "reference_art_screenshots_committed": false
+  },
+  "limits": [
+    "Work, Chat and Codex App status adapters remain unverified; no universal live monitoring claim.",
+    "Actual App event coverage, latency, source failure detection and multi-session acceptance remain required.",
+    "D6 persistence/flash behavior, physical unplug/replug and sleep/wake remain release gates.",
+    "Light-bar physical writes and Windows HID writes stay disabled.",
+    "Native macOS appearance uses system template tinting; OS chooses contrast color.",
+    "Local development app uses ad-hoc signature and uncleared local NuPhy artwork cache, not a public binary release."
+  ]
+}

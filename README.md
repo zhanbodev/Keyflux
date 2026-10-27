@@ -8,7 +8,7 @@
 
 A local AI status lighting companion, built around a Zig core for macOS and Windows. Keyflux maps agent activity to keyboard lighting, with separate extension points for keyboards, AI integrations, and visual effects.
 
-**Current stage: v0.1 internal validation. Manual Kick75 IO main-light tests work on macOS / USB / firmware 4.0.18.6 / Mac keyboard profile.** Static colors, exact configuration readback and original-effect restoration passed physical testing. Automatic AI-driven HID writes remain gated; the desktop App now offers verified manual USB main-light control on macOS; real Codex desktop reasoning/output detection, write persistence and the full device lifecycle are still unverified.
+**Current stage: v0.1 internal validation. Manual Kick75 IO main-light tests work on macOS / USB / firmware 4.0.18.6 / Mac keyboard profile.** Static colors, exact configuration readback and original-effect restoration passed physical testing. The desktop background follower and real USB path passed a controlled event test; actual ChatGPT App Work/Chat/Codex event adapters, write persistence and the full device lifecycle remain unverified.
 
 ## What works today
 
@@ -79,7 +79,7 @@ Use `--state-dir PATH` on both the server and clients to isolate an instance. Ke
 ./zig-out/bin/keyflux hardware-restore
 ```
 
-Use USB, firmware **4.0.18.6** and the **Mac keyboard profile**; close other lighting clients. The manual test uses 15% brightness, leaves side lights untouched and restores on exit/interruption. A direct `hardware-solid` command stays active until `hardware-restore`. Its original-state journal lives in the default data directory; hardware mutation commands reject `--state-dir` to keep one capture across processes. After an abrupt termination, reconnect the same device/USB port and explicitly restore.
+Use USB, firmware **4.0.18.6** and the **Mac keyboard profile**; close other lighting clients. The manual test uses 15% brightness, leaves side lights untouched and restores on exit/interruption. A direct `hardware-solid` command stays active until `hardware-restore`. Its original-state journal lives in the default data directory; hardware mutation commands reject `--state-dir` to keep one capture across processes. After an abrupt termination, reconnect the same device/USB port for internal recovery, or use the explicit developer CLI restore.
 
 The firmware quantizes RGB; the CLI reports the requested color and `color_quantized`, checks the exact requested or known quantized readback, and restores the original with an exact encoder check. See [protocol, recovery rules and remaining gates](docs/hardware/kick75.md) and [physical test evidence](docs/evidence/kick75-main-20261026.json). Windows/Win profile, flash persistence, sleep/unplug recovery and AI-driven physical changes are not enabled.
 
@@ -94,11 +94,11 @@ node desktop/scripts/dev.mjs
 
 The launcher builds the Zig sidecar and opens a **real read-only core** in an isolated development directory. Click **Connect keyboard** to identify the actual USB device. Startup never connects automatically. Until a successful connection, the App shows a neutral outline and connection gate; editing, brightness, import/export, saving and physical actions are locked. There is no simulated device or browser fixture entry in the shipped frontend.
 
-For the verified Kick75 combination, choose a state/color and click **Apply to keyboard** for a main-zone solid write with configuration readback. The device readback row stays separate from the color draft. Visible settings recheck an existing connection every approximately 4.5 seconds. Losing USB locks controls and stops device probing until the user clicks Connect again. **Disconnect** restores a capture owned by this App. Draft edits survive disconnect/reconnect. A capture left by an earlier App lifetime requires explicit **Restore lighting** before another write; unknown/mismatched records block writes. Strip editing and **Follow state** remain screen previews.
+For the verified Kick75 combination, Connect starts background following of actual core events. Edit colors and click **Save**; **Default** saves the default palette. Manual Apply/Restore/Follow controls and configuration readback labels are removed. Visible settings recheck an existing connection every approximately 4.5 seconds. Losing USB locks controls and stops device probing until the user clicks Connect again. **Disconnect** restores a capture owned by this App. Draft edits survive disconnect/reconnect. A compatible interrupted capture is recovered internally on Connect; unknown/mismatched records block writes. Strip editing remains screen-only. The first release targets the ChatGPT desktop App (Work, Chat and Codex); actual App event adapters remain unverified, so connection alone does not imply live monitoring. See [desktop integration scope](docs/CHATGPT_DESKTOP.md).
 
 The top keyboard has no card background, floating/sticky layer or selectable keys. The white console fits the supported window sizes without page scrolling, with vertical **Main / Light bar** navigation, a compact state list and a custom saturation/value + hue + RGB picker. Menus are app-drawn. Light color follows the original key-outline masks rather than filling the key faces. The old artificial outer gray strips are removed; the optional small right light-bar aperture is a screen illustration only.
 
-On the verified USB Kick75 / macOS / Mac profile / firmware 4.0.18.6 combination, **Apply to keyboard** uses the existing Zig capture, strict readback and restoration path. **Restore effect** restores the captured main configuration; disconnect or normal App Quit restores main lighting owned by this App. Connecting or saving a theme does not change physical colors. Unexpected devices/firmware remain read-only; Windows manual writes remain disabled. Light-bar settings are preview/configuration only. Following agent state currently changes the preview, not real HID.
+The Zig core resolves the saved palette for actual observed state. The desktop session follows that intent in the background, deduplicates writes and restores the original effect on idle/source loss/Disconnect/Quit. Selecting a preview color does not write hardware before Save. Windows and unverified firmware remain read-only. This internal flow does not certify real Codex stream coverage, flash behavior or end-to-end latency; Work, Chat and Codex need separate validated App adapters; a passing HID test does not prove App coverage.
 
 ```sh
 ./scripts/dev-macos.sh --no-build       # Reuse the built Zig sidecar
@@ -108,7 +108,7 @@ On the verified USB Kick75 / macOS / Mac profile / firmware 4.0.18.6 combination
 sh scripts/package-macos.sh            # Local release .app
 ```
 
-Close settings to keep the tray/core and any explicitly applied main color running; reopen from the tray. Quit the App or press Ctrl+C to end the supervised session. Recovery journals remain durable after a forced termination; reconnect the same keyboard/port and use **Restore effect**. Bundles live under `desktop/src-tauri/target/{debug,release}/bundle/macos/Keyflux.app`, with a local ad-hoc signature, without Apple notarization.
+Close settings to keep the tray/core and any explicitly applied main color running; reopen from the tray. Quit the App or press Ctrl+C to end the supervised session. Recovery journals remain durable after a forced termination; reconnect the same keyboard/port and click Connect for internal recovery. Bundles live under `desktop/src-tauri/target/{debug,release}/bundle/macos/Keyflux.app`, with a local ad-hoc signature, without Apple notarization.
 
 See [desktop development and command boundaries](docs/DESKTOP.md). The historical SwiftUI implementation in `macos/` is no longer the default UI. NuPhy artwork is a hash-verified, Git-ignored local cache, **not MIT content or cleared public distribution artwork**; see [third-party notices](THIRD_PARTY_NOTICES.md#nuphy-io-preview-artwork).
 
@@ -184,7 +184,7 @@ The recorded simulated benchmark measured about 0.08% of one CPU core at idle, 1
 | v0.5 | Claude Code, DeepSeek/other harness adapters, and community devices |
 | v1.0 | Stable contracts, compatibility matrix, migration/recovery, signed releases |
 
-The initial hardware target is one wired USB Kick75 **NuPhyIO** device. QMK/VIA variants, Bluetooth/2.4 GHz lighting, ordinary ChatGPT chat monitoring, and side-light effects are outside the first release. See the [detailed roadmap (Chinese)](docs/ROADMAP.md).
+The initial hardware target is one wired USB Kick75 **NuPhyIO** device. The initial application integration target is ChatGPT desktop Work, Chat and Codex, with each channel requiring independent verification. QMK/VIA variants, Bluetooth/2.4 GHz lighting and side-light effects remain outside the first release. See the [detailed roadmap (Chinese)](docs/ROADMAP.md).
 
 ## License
 

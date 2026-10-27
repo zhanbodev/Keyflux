@@ -19,11 +19,13 @@ test('compact console, custom menus and independent channel colors', async ({ pa
     await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight),
   ).toBeTruthy();
   await page.screenshot({ path: 'test-results/console-main.png' });
+  await page.getByRole('button', { name: 'Thinking', exact: true }).click();
   await page.getByLabel('红色通道').fill('255');
   await page.getByLabel('绿色通道').fill('34');
   await page.getByLabel('蓝色通道').fill('68');
   await page.getByRole('button', { name: '保存', exact: true }).click();
-  await expect(page.locator('.feedback')).toHaveText('配色已保存');
+  await expect(page.getByRole('button', { name: '保存', exact: true })).toBeDisabled();
+  await expect(page.locator('.feedback')).not.toContainText('回读');
   await expect(page.locator('.keyboard')).toHaveCSS('--light-color', '#FF2244');
   await page.getByRole('button', { name: '条形灯', exact: true }).click();
   await page.getByLabel('启用条形灯').check();
@@ -33,7 +35,7 @@ test('compact console, custom menus and independent channel colors', async ({ pa
   await expect(page.locator('.strip-aperture')).toHaveCSS('background-color', 'rgb(0, 215, 160)');
   await expect(page.locator('.keyboard')).toHaveCSS('--light-color', '#FF2244');
   await page.screenshot({ path: 'test-results/console-strip.png' });
-  await page.getByRole('button', { name: '撤销', exact: true }).click();
+  await page.getByRole('button', { name: '默认', exact: true }).click();
   await expect(page.getByLabel('启用条形灯')).not.toBeChecked();
   await expect(page.locator('.strip-aperture')).toHaveCount(0);
   await page.getByRole('button', { name: '键盘型号', exact: true }).click();
@@ -41,35 +43,38 @@ test('compact console, custom menus and independent channel colors', async ({ pa
   await expect(page.getByRole('option')).toHaveCount(1);
   await page.getByRole('button', { name: '键盘型号', exact: true }).press('Escape');
   await page.getByRole('button', { name: '主键区', exact: true }).click();
-  await page.getByLabel('跟随状态').check();
-  await expect(page.locator('.panel-heading h2')).toHaveText('Thinking');
-  await page.getByLabel('红色通道').focus();
-  await expect(page.getByLabel('跟随状态')).not.toBeChecked();
+  await expect(page.getByLabel('跟随状态')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
-test('explicit connection, apply and restore UI', async ({ page }) => {
+test('connect follows by default, save persists colors and default resets the palette', async ({
+  page,
+}) => {
   await installBridge(page);
   await page.goto('/');
-  await expect(page.getByRole('button', { name: '应用到键盘', exact: true })).toBeDisabled();
+  for (const label of ['应用到键盘', '恢复灯效', '撤销'])
+    await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('跟随状态')).toHaveCount(0);
+  await expect(page.getByLabel('设备回读')).toHaveCount(0);
   await page.getByRole('button', { name: '连接键盘', exact: true }).click();
   await expect(page.getByRole('button', { name: '断开', exact: true })).toBeEnabled();
-  await expect(page.getByLabel('设备回读')).toContainText('动态灯效');
-  await expect(page.getByRole('button', { name: '恢复灯效', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: '应用到键盘', exact: true }).click();
-  await expect(page.locator('.feedback')).toHaveText('主灯已应用，回读确认');
-  await expect(page.getByLabel('设备回读')).toContainText('常亮');
-  await expect(page.getByLabel('设备回读')).toContainText('原灯效已保存');
-  // Editing a draft must not claim a different actual device readback.
+  await expect(page.locator('.keyboard')).toHaveCSS('--light-color', '#06B6D4');
+  await page.getByRole('button', { name: 'Thinking', exact: true }).click();
   await page.getByRole('button', { name: '预设颜色 3', exact: true }).click();
-  await expect(page.getByLabel('设备回读').locator('i')).toHaveCSS(
-    'background-color',
-    'rgb(59, 130, 246)',
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+  await expect(page.getByRole('button', { name: '保存', exact: true })).toBeDisabled();
+  await expect(page.locator('.keyboard')).toHaveCSS('--light-color', '#00D7A0');
+  await expect(page.locator('.feedback')).toBeEmpty();
+  await page.getByRole('button', { name: '默认', exact: true }).click();
+  await expect(page.locator('.keyboard')).toHaveCSS('--light-color', '#06B6D4');
+  await expect(page.getByRole('button', { name: '保存', exact: true })).toBeDisabled();
+  const calls = await page.evaluate(
+    () => (window as unknown as { __testBridge: { calls: string[] } }).__testBridge.calls,
   );
-  await page.getByRole('button', { name: '恢复灯效', exact: true }).click();
-  await expect(page.locator('.feedback')).toHaveText('原灯效已恢复并回读确认');
-  await expect(page.getByLabel('设备回读')).toContainText('动态灯效');
+  expect(calls.filter((name) => name === 'save_theme')).toHaveLength(2);
+  expect(calls).not.toContain('apply_main');
+  expect(calls).not.toContain('restore_device');
   await page.getByRole('button', { name: '断开', exact: true }).click();
-  await expect(page.getByRole('button', { name: '应用到键盘', exact: true })).toBeDisabled();
+  await expect(page.locator('.console')).toHaveCount(0);
 });
 test('small supported windows keep every control on screen', async ({ page }) => {
   await installBridge(page);
@@ -165,10 +170,10 @@ test('startup requires explicit USB connection and failed attempts stay locked',
   await expect(page.getByRole('button', { name: '连接 USB 键盘', exact: true })).toBeEnabled();
   await expect(page.locator('.console')).toHaveCount(0);
   await expect(page.locator('.keyboard')).toHaveCSS('--light-color', '#55575a');
-  for (const label of ['键盘型号', '更多操作', '应用到键盘', '保存', '默认', '撤销', '恢复灯效']) {
+  for (const label of ['键盘型号', '更多操作', '保存', '默认']) {
     await expect(page.getByRole('button', { name: label, exact: true })).toBeDisabled();
   }
-  await expect(page.getByLabel('跟随状态')).toBeDisabled();
+  await expect(page.getByLabel('跟随状态')).toHaveCount(0);
   await expect(page.getByLabel('完成色保持秒数')).toBeDisabled();
   await page.clock.fastForward(15000);
   expect(

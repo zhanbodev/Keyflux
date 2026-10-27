@@ -1,0 +1,2 @@
+Built-in image_gen edit of desktop/src-tauri/icons/icon.png (previous version).
+Enlarge the complete existing keyboard to approximately 92% of a square transparent canvas. Preserve aspect ratio, four key rows, graphite housing and yellow/cyan/blue/purple accent caps. No added tile, text, crop or decoration.

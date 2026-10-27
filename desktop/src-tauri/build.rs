@@ -6,8 +6,6 @@ fn main() {
         "get_device",
         "connect_device",
         "disconnect_device",
-        "restore_device",
-        "apply_main",
         "import_theme",
         "export_theme",
     ]);

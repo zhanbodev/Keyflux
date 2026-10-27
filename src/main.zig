@@ -84,6 +84,7 @@ const Runtime = struct {
     theme_arena: std.heap.ArenaAllocator,
     evidence: Evidence = .{},
     token: []const u8 = "",
+    otlp_port: u16 = 0,
     stopping: bool = false,
     device_error: ?[]const u8 = null,
     preview_phase: ?events.Phase = null,
@@ -127,6 +128,8 @@ const Runtime = struct {
         theme_schema_versions: [2]u16 = .{ 1, 2 },
         release_ready: bool = false,
         acknowledged: ?devices.Lighting,
+        lighting: ?themes.Signal,
+        otlp_port: u16,
         device_error: ?[]const u8,
         evidence: Evidence,
         preview: ?events.Phase,
@@ -135,7 +138,7 @@ const Runtime = struct {
     fn snapshot(self: *Runtime, now: u64) Status {
         var stats: [3]u64 = @splat(0);
         const available = p.kf_process_stats(&stats) == 0;
-        return .{ .schema_version = 1, .version = "0.1.0-dev", .state = self.core.snapshot(now), .backend = if (self.simulated) "simulated" else "read-only", .main_write_enabled = self.simulated, .release_ready = false, .acknowledged = self.lease.acknowledged, .device_error = self.device_error, .evidence = self.evidence, .preview = self.preview_phase, .process_metrics = .{ .available = available, .cpu_time_ns = stats[0], .resident_bytes = stats[1], .monotonic_ns = stats[2] } };
+        return .{ .schema_version = 1, .version = "0.1.0-dev", .state = self.core.snapshot(now), .backend = if (self.simulated) "simulated" else "read-only", .main_write_enabled = self.simulated, .release_ready = false, .acknowledged = self.lease.acknowledged, .lighting = self.theme.signal(self.core.snapshot(now).phase), .otlp_port = self.otlp_port, .device_error = self.device_error, .evidence = self.evidence, .preview = self.preview_phase, .process_metrics = .{ .available = available, .cpu_time_ns = stats[0], .resident_bytes = stats[1], .monotonic_ns = stats[2] } };
     }
     fn handle(self: *Runtime, a: Allocator, bytes: []const u8, now: u64) ![]const u8 {
         const parsed = try std.json.parseFromSlice(Value, a, bytes, .{ .max_value_len = max_request });
@@ -289,7 +292,7 @@ fn serve(a: Allocator, simulated: bool, port: u16) !void {
     if (p.kf_listen(port) != 0) return error.DaemonAlreadyRunningOrBindFailed;
     defer p.kf_shutdown();
     const runtime = try a.create(Runtime);
-    runtime.* = .{ .simulated = simulated, .theme_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator) };
+    runtime.* = .{ .simulated = simulated, .otlp_port = port, .theme_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator) };
     defer runtime.theme_arena.deinit();
     if (try readState(a, "theme.json", 16384)) |bytes| try runtime.loadTheme(bytes);
     if (simulated) {

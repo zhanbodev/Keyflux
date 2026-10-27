@@ -25,12 +25,12 @@ const errorText = (error: unknown) => {
         DeviceNotFound: '未找到 Kick75，请检查 USB 连接',
         HidOpenFailed: '键盘被其他灯控程序占用',
         NotConnected: '请先连接键盘',
-        RecoveryRequired: '有未完成的写入，请先恢复灯效',
-        ConcurrentDeviceChange: '检测到其他灯控修改，请先恢复灯效',
+        RecoveryRequired: '灯效恢复待完成，请重新连接原键盘',
+        ConcurrentDeviceChange: '检测到其他灯控修改，请关闭其他灯控后重新连接',
         DeviceChanged: '设备已改变，请重新连接',
         UnverifiedDevice: '当前系统、固件或档位尚未通过灯控验证',
         SimulationNotAllowed: '当前为模拟实例，请使用普通启动命令',
-        ReadbackMismatch: '灯光回读不一致，请恢复灯效',
+        ReadbackMismatch: '灯光确认失败，请重新连接键盘',
         DeviceBusy: '设备忙碌，等待重新读取',
         DeviceDisconnected: '键盘已断开，等待原设备重新接入',
         HidTimeout: '键盘响应超时，请检查 USB 或其他灯控程序',
@@ -55,12 +55,11 @@ export function App() {
   const [ready, setReady] = useState(false),
     [busy, setBusy] = useState(false);
   const [error, setError] = useState(''),
-    [connectionError, setConnectionError] = useState(''),
-    [notice, setNotice] = useState('');
+    [connectionError, setConnectionError] = useState('');
   const [model, setModel] = useState(layouts[0].id),
     [phase, setPhase] = useState<Phase>('working');
-  const [follow, setFollow] = useState(false),
-    [zone, setZone] = useState<'main' | 'side'>('main');
+  const [previewing, setPreviewing] = useState(false);
+  const [zone, setZone] = useState<'main' | 'side'>('main');
   const dirty = JSON.stringify(theme) !== JSON.stringify(saved);
   useEffect(() => {
     let disposed = false,
@@ -136,18 +135,13 @@ export function App() {
     return () => window.removeEventListener('beforeunload', guard);
   }, [dirty]);
   const live = status?.result.state.phase;
-  const displayed = follow ? (phases.includes(live as Phase) ? (live as Phase) : null) : phase;
-  const editPhase = displayed ?? phase;
+  const displayed = previewing ? phase : phases.includes(live as Phase) ? (live as Phase) : null;
+  const editPhase = phase;
   const signal =
     zone === 'main' || theme.side.mode === 'follow_main'
       ? theme.signals[editPhase]
       : theme.side.signals[editPhase];
-  const beginEdit = () => {
-    if (follow) {
-      setPhase(editPhase);
-      setFollow(false);
-    }
-  };
+  const beginEdit = () => setPreviewing(true);
   const update = (value: Partial<Signal>) => {
     beginEdit();
     setTheme((previous) => {
@@ -165,7 +159,6 @@ export function App() {
     ++deviceRevision.current;
     setBusy(true);
     setError('');
-    setNotice('');
     try {
       await task();
     } catch (e) {
@@ -186,21 +179,13 @@ export function App() {
       if (device.connected) {
         await command('disconnect_device');
         setDevice(disconnected);
-        setNotice('已断开连接');
       } else {
         const next = await command<Device>('connect_device');
         setDevice(next);
         if (next.model_id) setModel(next.model_id);
-        setNotice(next.writable ? 'USB 已连接，可应用主灯颜色' : 'USB 已连接，当前设备仅支持回读');
       }
     });
   const locked = zone === 'side' && (!theme.side.enabled || theme.side.mode === 'follow_main');
-  const canApply =
-    device.connected &&
-    device.writable &&
-    !device.recovery_required &&
-    device.model_id === model &&
-    zone === 'main';
   return (
     <main className="app-shell">
       <header className="toolbar">
@@ -215,15 +200,6 @@ export function App() {
           }))}
         />
         <div className="toolbar-right">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              disabled={!device.connected || busy}
-              checked={follow}
-              onChange={(e) => setFollow(e.target.checked)}
-            />
-            跟随状态
-          </label>
           <span
             className={`connection ${device.connected ? 'online' : ''}`}
             title={device.firmware ? `固件 ${device.firmware} · ${device.profile} 档` : undefined}
@@ -245,7 +221,7 @@ export function App() {
                     const imported = await command<unknown>('import_theme');
                     if (imported !== null) {
                       setTheme(parseTheme(imported));
-                      setNotice('已导入，保存后生效');
+                      setPreviewing(true);
                     }
                   }),
               },
@@ -254,8 +230,7 @@ export function App() {
                 label: '导出配色',
                 onSelect: () =>
                   void run(async () => {
-                    if (await command<boolean>('export_theme', { theme: parseTheme(theme) }))
-                      setNotice('配色已导出');
+                    await command<boolean>('export_theme', { theme: parseTheme(theme) });
                   }),
               },
             ]}
@@ -269,29 +244,6 @@ export function App() {
             main={device.connected && displayed ? theme.signals[displayed] : null}
             strip={device.connected && displayed ? sideSignal(theme, displayed) : null}
           />
-        </div>
-        <div className="device-readback" aria-label="设备回读" role="status">
-          {device.connected && device.main ? (
-            <>
-              <span>设备回读</span>
-              {device.main.color && <i style={{ backgroundColor: device.main.color }} />}
-              <strong>
-                {device.main.mode === 'solid'
-                  ? '常亮'
-                  : device.main.mode === 'custom'
-                    ? '自定义灯效'
-                    : '动态灯效'}
-              </strong>
-              <span>{device.main.brightness}%</span>
-              {device.recovery_pending && (
-                <span className="recovery-hint">
-                  {device.recovery_required ? '请先恢复灯效' : '原灯效已保存'}
-                </span>
-              )}
-            </>
-          ) : (
-            <span>{'未连接 USB'}</span>
-          )}
         </div>
       </section>
       {!device.connected ? (
@@ -335,16 +287,17 @@ export function App() {
               return (
                 <button
                   key={p}
+                  aria-label={labels[p]}
                   className={editPhase === p ? 'selected' : ''}
                   aria-pressed={editPhase === p}
                   onClick={() => {
-                    setFollow(false);
+                    setPreviewing(true);
                     setPhase(p);
                   }}
                 >
                   <i style={{ backgroundColor: swatch.color }} />
                   <span>{labels[p]}</span>
-                  {follow && p === live && <span className="live-dot" aria-label="当前状态" />}
+                  {p === live && <span className="live-dot" aria-label="当前状态" />}
                 </button>
               );
             })}
@@ -381,13 +334,13 @@ export function App() {
                 </div>
               ) : (
                 <span className="phase-caption">
-                  {follow
-                    ? displayed
-                      ? '当前状态'
+                  {previewing
+                    ? '配色预览'
+                    : displayed
+                      ? labels[displayed]
                       : live === 'idle'
-                        ? '当前空闲'
-                        : '状态不可用'
-                    : '配色预览'}
+                        ? '空闲'
+                        : '状态不可用'}
                 </span>
               )}
             </div>
@@ -423,16 +376,11 @@ export function App() {
             <span className="error">
               {error || connectionError || errorText(device.last_error)}
             </span>
-          ) : (
-            (device.recovery_required ? '检测到上次的灯效记录，请先恢复原灯效' : notice) ||
-            (dirty
-              ? '未保存'
-              : device.connected
-                ? device.firmware
-                  ? `Kick75 IO · ${device.firmware}`
-                  : '已连接'
-                : '请先连接真实 USB 键盘')
-          )}
+          ) : dirty ? (
+            '未保存'
+          ) : device.connected && live === 'idle' ? (
+            'ChatGPT App 状态待接入'
+          ) : null}
         </div>
         <label className="hold">
           完成保持
@@ -456,45 +404,17 @@ export function App() {
         <div className="actions">
           <button
             disabled={!ready || !device.connected || busy}
-            onClick={() => setTheme(defaultTheme())}
+            onClick={() =>
+              void run(async () => {
+                const defaults = defaultTheme();
+                await command('save_theme', { theme: defaults });
+                setTheme(defaults);
+                setSaved(structuredClone(defaults));
+                setPreviewing(false);
+              })
+            }
           >
             默认
-          </button>
-          <button
-            disabled={!device.connected || !dirty || busy}
-            onClick={() => {
-              setTheme(structuredClone(saved));
-              setError('');
-            }}
-          >
-            撤销
-          </button>
-          <button
-            disabled={!device.can_restore || busy}
-            onClick={() =>
-              void run(async () => {
-                const restored = await command<Device>('restore_device');
-                setDevice(restored);
-                setNotice(
-                  restored.restored === false ? '没有待恢复的灯效' : '原灯效已恢复并回读确认',
-                );
-              })
-            }
-          >
-            恢复灯效
-          </button>
-          <button
-            disabled={!canApply || busy}
-            onClick={() =>
-              void run(async () => {
-                setDevice(
-                  await command<Device>('apply_main', { signal: theme.signals[editPhase], model }),
-                );
-                setNotice('主灯已应用，回读确认');
-              })
-            }
-          >
-            应用到键盘
           </button>
           <button
             className="primary"
@@ -504,7 +424,7 @@ export function App() {
                 const validated = parseTheme(theme);
                 await command('save_theme', { theme: validated });
                 setSaved(structuredClone(validated));
-                setNotice('配色已保存');
+                setPreviewing(false);
               })
             }
           >

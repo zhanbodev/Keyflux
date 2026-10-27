@@ -76,7 +76,8 @@ async fn connect_device(core: State<'_, Shared>, device: State<'_, SharedDevice>
     let device = device.inner().clone();
     blocking(move || {
         core.ensure()?;
-        device.connect(&core)
+        device.connect(&core)?;
+        device.start_following(core.as_ref())
     })
     .await
 }
@@ -85,23 +86,6 @@ async fn disconnect_device(core: State<'_, Shared>, device: State<'_, SharedDevi
     let core = core.inner().clone();
     let device = device.inner().clone();
     blocking(move || device.disconnect(core.as_ref())).await
-}
-#[tauri::command]
-async fn restore_device(core: State<'_, Shared>, device: State<'_, SharedDevice>) -> Reply {
-    let core = core.inner().clone();
-    let device = device.inner().clone();
-    blocking(move || device.restore(core.as_ref())).await
-}
-#[tauri::command]
-async fn apply_main(
-    core: State<'_, Shared>,
-    device: State<'_, SharedDevice>,
-    signal: Value,
-    model: String,
-) -> Reply {
-    let core = core.inner().clone();
-    let device = device.inner().clone();
-    blocking(move || device.apply(core.as_ref(), &model, &signal)).await
 }
 #[tauri::command]
 async fn import_theme(
@@ -193,6 +177,8 @@ fn main() {
     let exit_core = service.clone();
     let keyboard = Arc::new(device::Device::default());
     let exit_keyboard = keyboard.clone();
+    let follow_core = service.clone();
+    let follow_keyboard = keyboard.clone();
     tauri::Builder::default()
         .manage(service)
         .manage(keyboard)
@@ -204,8 +190,6 @@ fn main() {
             get_device,
             connect_device,
             disconnect_device,
-            restore_device,
-            apply_main,
             import_theme,
             export_theme
         ])
@@ -215,7 +199,7 @@ fn main() {
             let menu = Menu::with_items(app, &[&settings, &quit])?;
             TrayIconBuilder::new()
                 .icon(tray::icon())
-                .icon_as_template(false)
+                .icon_as_template(cfg!(target_os = "macos"))
                 .tooltip("Keyflux — AI 状态灯")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
@@ -229,6 +213,16 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("Keyflux desktop initialization")
         .run(move |_app, event| match event {
+            tauri::RunEvent::Ready => {
+                let core = follow_core.clone();
+                let keyboard = follow_keyboard.clone();
+                std::thread::spawn(move || {
+                    while !keyboard.closing() {
+                        keyboard.follow_core(&core);
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                    }
+                });
+            }
             tauri::RunEvent::ExitRequested {
                 code: None, api, ..
             } => api.prevent_exit(),
