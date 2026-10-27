@@ -11,6 +11,8 @@
     "allow-export-theme",
     "allow-get-device",
     "allow-connect-device",
-    "allow-disconnect-device"
+    "allow-disconnect-device",
+    "allow-acknowledge-task",
+    "allow-open-task"
   ]
 }

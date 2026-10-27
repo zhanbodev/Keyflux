@@ -1,9 +1,27 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { parseTheme, type Theme } from './theme';
+import { parseTheme, type Theme, type Action } from './theme';
+export interface Task {
+  label: string | null;
+  provider: string;
+  session_id: string;
+  turn_id: string;
+  phase: string;
+  ended: boolean;
+  cancelled: boolean;
+  acknowledged: boolean;
+  updated_ns: number;
+  active_tasks: number;
+  pending_approvals: number;
+  pending_inputs: number;
+  pending_other: number;
+  check_type: 'test' | 'build' | null;
+}
 export interface Status {
+  tasks?: Task[];
   result: {
     backend: string;
     state: { phase: string };
+    action?: Action;
     lighting?: { color: string; brightness: number } | null;
     theme_schema_versions: number[];
   };

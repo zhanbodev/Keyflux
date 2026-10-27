@@ -14,8 +14,42 @@ export async function installBridge(page: Page, failConnect = false) {
       const state = {
         backend: 'read-only',
         state: { phase: 'thinking' },
-        theme_schema_versions: [1, 2],
+        theme_schema_versions: [1, 2, 3],
       };
+      const tasks = [
+        {
+          provider: 'codex.desktop.local',
+          session_id: '019a0000-0000-7000-8000-000000000001',
+          turn_id: 't1',
+          phase: 'attention',
+          ended: false,
+          cancelled: false,
+          acknowledged: false,
+          updated_ns: 3,
+          active_tasks: 1,
+          pending_approvals: 0,
+          pending_inputs: 1,
+          pending_other: 0,
+          check_type: null,
+          label: null,
+        },
+        {
+          provider: 'keyflux.check',
+          session_id: 'check-build',
+          turn_id: 'r1',
+          phase: 'check_failed',
+          ended: true,
+          cancelled: false,
+          acknowledged: false,
+          updated_ns: 2,
+          active_tasks: 0,
+          pending_approvals: 0,
+          pending_inputs: 0,
+          pending_other: 0,
+          check_type: 'build',
+          label: 'keyflux',
+        },
+      ];
       const calls: string[] = [];
       Object.assign(window, {
         isTauri: true,
@@ -37,8 +71,21 @@ export async function installBridge(page: Page, failConnect = false) {
               case 'get_status':
                 return {
                   result: { ...state, lighting: currentTheme.signals.thinking },
+                  tasks: structuredClone(tasks),
                   desktop: { hardware_writes: false, core_owned: false, instance_id: 'test' },
                 };
+              case 'open_task':
+                return null;
+              case 'acknowledge_task': {
+                const task = tasks.find(
+                  (t) =>
+                    t.provider === args.provider &&
+                    t.session_id === args.sessionId &&
+                    t.turn_id === args.turnId,
+                );
+                if (task) task.acknowledged = true;
+                return { ok: true };
+              }
               case 'get_theme':
                 return { theme: structuredClone(currentTheme) };
               case 'save_theme':

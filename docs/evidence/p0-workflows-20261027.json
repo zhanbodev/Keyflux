@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-27",
+  "scope": "P0 workflows and native main-zone firmware actions",
+  "software": {
+    "passed": true,
+    "tests": {
+      "zig": 45,
+      "rust": 31,
+      "vitest": 17,
+      "playwright": 10,
+      "ipc": 12,
+      "real_process_workflow": 3,
+      "phase_probe": 3,
+      "preview_layout": 3
+    },
+    "total_passed": 124,
+    "manual_rust_tests_skipped": 4,
+    "macos_app_build": "passed",
+    "codesign_deep_strict": "passed_ad_hoc",
+    "windows_x64_core_cross_compile": "passed",
+    "windows_runtime_verified": false,
+    "clippy_all_targets_deny_warnings": "passed"
+  },
+  "artifacts": {
+    "app_size_bytes": 9114704,
+    "core_sha256": "70203902144023207afb5a37cb2acfa024b8d61a20522c52eff9cf2726cf7d97"
+  },
+  "hardware": {
+    "new_effects_verified": false,
+    "device_observation": "DeviceNotFound",
+    "existing_recovery_record_preserved": true,
+    "physical_mutations_during_this_change": 0,
+    "visual_validation": "pending_original_keyboard"
+  },
+  "actions": {
+    "solid": 3,
+    "marquee": 6,
+    "orbit": 10,
+    "blink": 9,
+    "rendered_by": "keyboard_firmware",
+    "host_frame_stream": false,
+    "strip_writes": false
+  },
+  "boundaries": {
+    "thinking_output_realtime_gate": "unchanged_not_passed",
+    "ordinary_turn_end_is_verification": false,
+    "unwrapped_commands_auto_verified": false,
+    "task_acknowledgement_grants_approval": false,
+    "task_history_persisted": false,
+    "public_release_ready": false
+  }
+}

@@ -4,8 +4,11 @@ import { KeyboardPreview, layouts } from './KeyboardPreview';
 import { ColorPicker } from './ColorPicker';
 import { Select } from './Select';
 import { MoreMenu } from './MoreMenu';
+import { Tasks } from './Tasks';
 import { Brightness } from './Brightness';
 import {
+  effects,
+  effectLabels,
   defaultTheme,
   labels,
   parseTheme,
@@ -59,14 +62,14 @@ export function App() {
   const [model, setModel] = useState(layouts[0].id),
     [phase, setPhase] = useState<Phase>('working');
   const [previewing, setPreviewing] = useState(false);
-  const [zone, setZone] = useState<'main' | 'side'>('main');
+  const [zone, setZone] = useState<'main' | 'side' | 'tasks'>('main');
   const dirty = JSON.stringify(theme) !== JSON.stringify(saved);
   useEffect(() => {
     let disposed = false,
       polls = 0;
     let timer: ReturnType<typeof setTimeout>;
     const check = (next: Status) => {
-      if (!next.result.theme_schema_versions?.includes(2)) throw new Error('核心不支持 Theme v2');
+      if (!next.result.theme_schema_versions?.includes(3)) throw new Error('核心不支持 Theme v3');
       if (next.result.backend === 'simulated') throw new Error('SimulationNotAllowed');
     };
     const refresh = async () => {
@@ -242,6 +245,7 @@ export function App() {
           <KeyboardPreview
             model={model}
             main={device.connected && displayed ? theme.signals[displayed] : null}
+            action={device.connected && displayed ? theme.actions[displayed] : undefined}
             strip={device.connected && displayed ? sideSignal(theme, displayed) : null}
           />
         </div>
@@ -277,97 +281,159 @@ export function App() {
               </svg>
               条形灯
             </button>
+            <button className={zone === 'tasks' ? 'active' : ''} onClick={() => setZone('tasks')}>
+              任务
+            </button>
           </nav>
-          <div className="states" aria-label="状态配色">
-            {phases.map((p) => {
-              const swatch =
-                zone === 'main' || theme.side.mode === 'follow_main'
-                  ? theme.signals[p]
-                  : theme.side.signals[p];
-              return (
-                <button
-                  key={p}
-                  aria-label={labels[p]}
-                  className={editPhase === p ? 'selected' : ''}
-                  aria-pressed={editPhase === p}
-                  onClick={() => {
-                    setPreviewing(true);
-                    setPhase(p);
-                  }}
-                >
-                  <i style={{ backgroundColor: swatch.color }} />
-                  <span>{labels[p]}</span>
-                  {p === live && <span className="live-dot" aria-label="当前状态" />}
-                </button>
-              );
-            })}
-          </div>
-          <div className="color-panel">
-            <div className="panel-heading">
-              <h2>{labels[editPhase]}</h2>
-              {zone === 'side' ? (
-                <div className="strip-controls">
-                  <label className="toggle">
-                    <input
-                      type="checkbox"
-                      checked={theme.side.enabled}
-                      onChange={(e) =>
-                        setTheme({ ...theme, side: { ...theme.side, enabled: e.target.checked } })
-                      }
-                    />
-                    启用条形灯
-                  </label>
-                  <Select
-                    label="条形灯配色模式"
-                    value={theme.side.mode}
-                    onChange={(mode) =>
-                      setTheme({
-                        ...theme,
-                        side: { ...theme.side, mode: mode as Theme['side']['mode'] },
-                      })
-                    }
-                    options={[
-                      { value: 'follow_main', label: '跟随主键区' },
-                      { value: 'independent', label: '独立配色' },
-                    ]}
-                  />
-                </div>
-              ) : (
-                <span className="phase-caption">
-                  {previewing
-                    ? '配色预览'
-                    : displayed
-                      ? labels[displayed]
-                      : live === 'idle'
-                        ? '空闲'
-                        : '状态不可用'}
-                </span>
-              )}
-            </div>
-            <ColorPicker
-              value={signal.color}
-              disabled={!ready || busy || locked}
-              onBegin={beginEdit}
-              onChange={(color) => update({ color })}
+          {zone === 'tasks' ? (
+            <Tasks
+              tasks={status?.tasks ?? []}
+              refresh={async () => setStatus(await command<Status>('get_status'))}
             />
-            <div className="channel-row">
-              <Brightness
-                value={signal.brightness}
-                disabled={!ready || busy || locked}
-                onBegin={beginEdit}
-                onChange={(brightness) => update({ brightness })}
-              />
-              {zone === 'side' && (
-                <span className="strip-hint">
-                  {locked
-                    ? theme.side.enabled
-                      ? '跟随主键区颜色'
-                      : '启用后预览条形灯'
-                    : '条形灯暂不写入设备'}
-                </span>
-              )}
-            </div>
-          </div>
+          ) : (
+            <>
+              <div className="states" aria-label="状态配色">
+                {phases.map((p) => {
+                  const swatch =
+                    zone === 'main' || theme.side.mode === 'follow_main'
+                      ? theme.signals[p]
+                      : theme.side.signals[p];
+                  return (
+                    <button
+                      key={p}
+                      aria-label={labels[p]}
+                      className={editPhase === p ? 'selected' : ''}
+                      aria-pressed={editPhase === p}
+                      onClick={() => {
+                        setPreviewing(true);
+                        setPhase(p);
+                      }}
+                    >
+                      <i style={{ backgroundColor: swatch.color }} />
+                      <span>{labels[p]}</span>
+                      {p === live && <span className="live-dot" aria-label="当前状态" />}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="color-panel">
+                <div className="panel-heading">
+                  <h2>{labels[editPhase]}</h2>
+                  {zone === 'side' ? (
+                    <div className="strip-controls">
+                      <label className="toggle">
+                        <input
+                          type="checkbox"
+                          checked={theme.side.enabled}
+                          onChange={(e) =>
+                            setTheme({
+                              ...theme,
+                              side: { ...theme.side, enabled: e.target.checked },
+                            })
+                          }
+                        />
+                        启用条形灯
+                      </label>
+                      <Select
+                        label="条形灯配色模式"
+                        value={theme.side.mode}
+                        onChange={(mode) =>
+                          setTheme({
+                            ...theme,
+                            side: { ...theme.side, mode: mode as Theme['side']['mode'] },
+                          })
+                        }
+                        options={[
+                          { value: 'follow_main', label: '跟随主键区' },
+                          { value: 'independent', label: '独立配色' },
+                        ]}
+                      />
+                    </div>
+                  ) : (
+                    <span className="phase-caption">
+                      {previewing
+                        ? '配色预览'
+                        : displayed
+                          ? labels[displayed]
+                          : live === 'idle'
+                            ? '空闲'
+                            : '状态不可用'}
+                    </span>
+                  )}
+                </div>
+                {zone === 'main' && (
+                  <div className="effect-controls">
+                    <Select
+                      label="灯光动作"
+                      value={theme.actions[editPhase].effect}
+                      disabled={busy}
+                      options={effects.map((value) => ({ value, label: effectLabels[value] }))}
+                      onChange={(effect) => {
+                        beginEdit();
+                        setTheme((previous) => ({
+                          ...previous,
+                          actions: {
+                            ...previous.actions,
+                            [editPhase]: {
+                              ...previous.actions[editPhase],
+                              effect: effect as Theme['actions'][Phase]['effect'],
+                            },
+                          },
+                        }));
+                      }}
+                    />
+                    {theme.actions[editPhase].effect !== 'solid' && (
+                      <label>
+                        速度
+                        <input
+                          type="range"
+                          min="1"
+                          max="5"
+                          step="1"
+                          aria-label="动作速度"
+                          value={theme.actions[editPhase].speed}
+                          onChange={(e) => {
+                            const speed = Number(e.target.value);
+                            beginEdit();
+                            setTheme((previous) => ({
+                              ...previous,
+                              actions: {
+                                ...previous.actions,
+                                [editPhase]: { ...previous.actions[editPhase], speed },
+                              },
+                            }));
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                )}
+                <ColorPicker
+                  value={signal.color}
+                  disabled={!ready || busy || locked}
+                  onBegin={beginEdit}
+                  onChange={(color) => update({ color })}
+                />
+                <div className="channel-row">
+                  <Brightness
+                    value={signal.brightness}
+                    disabled={!ready || busy || locked}
+                    onBegin={beginEdit}
+                    onChange={(brightness) => update({ brightness })}
+                  />
+                  {zone === 'side' && (
+                    <span className="strip-hint">
+                      {locked
+                        ? theme.side.enabled
+                          ? '跟随主键区颜色'
+                          : '启用后预览条形灯'
+                        : '条形灯暂不写入设备'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </section>
       )}
       <footer className="save-bar">

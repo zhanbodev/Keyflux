@@ -82,6 +82,7 @@ struct Observation {
     terminal: Option<Terminal>,
     overflow: bool,
     requests: BTreeMap<String, bool>,
+    input_requests: HashSet<String>,
 }
 impl Observation {
     fn consume(&mut self, line: &[u8], serial: &mut u64) {
@@ -173,6 +174,9 @@ impl Observation {
                         .as_deref()
                         .is_some_and(|n| n.rsplit(['.', '/']).next() == Some("request_user_input"));
                     if self.requests.len() < 8 || self.requests.contains_key(&id) {
+                        if attention {
+                            self.input_requests.insert(id.clone());
+                        }
                         self.requests.insert(id, attention);
                     } else {
                         self.overflow = true;
@@ -183,11 +187,15 @@ impl Observation {
             "tool_end" => {
                 if let Some(id) = request {
                     self.requests.remove(&id);
+                    self.input_requests.remove(&id);
                 }
             }
             "attention" => {
                 if let Some(id) = request {
                     if self.requests.len() < 8 || self.requests.contains_key(&id) {
+                        if p.kind == "waiting_on_user_input" {
+                            self.input_requests.insert(id.clone());
+                        }
                         self.requests.insert(id, true);
                     } else {
                         self.overflow = true;
@@ -359,10 +367,26 @@ impl Reader {
         kind: &str,
         request: Option<&str>,
     ) -> Result<(), String> {
+        self.emit_classified(emit, id, turn, kind, request, None)
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn emit_classified(
+        &mut self,
+        emit: &mut impl FnMut(&Value) -> Result<(), String>,
+        id: &str,
+        turn: &str,
+        kind: &str,
+        request: Option<&str>,
+        attention_kind: Option<&str>,
+    ) -> Result<(), String> {
         let stamp = now_ns();
         let mut event = json!({"schema_version":1,"provider":PROVIDER,"session_id":id,"turn_id":turn,"event_id":format!("local-{}-{stamp}",std::process::id()),"timestamp_ns":stamp,"kind":kind});
         if let Some(request) = request {
             event["request_id"] = json!(request);
+        }
+        if let Some(reason) = attention_kind {
+            event["schema_version"] = json!(2);
+            event["attention_kind"] = json!(reason);
         }
         emit(&event)?;
         self.forwarded += 1;
@@ -466,7 +490,7 @@ impl Reader {
                     p.requests.insert(request.clone(), false);
                 }
                 if p.requests.get(request) != Some(waiting) {
-                    self.emit(
+                    self.emit_classified(
                         emit,
                         id,
                         &turn,
@@ -476,6 +500,15 @@ impl Reader {
                             "attention_resolved"
                         },
                         Some(request),
+                        if *waiting {
+                            Some(if o.input_requests.contains(request) {
+                                "input"
+                            } else {
+                                "approval"
+                            })
+                        } else {
+                            None
+                        },
                     )?;
                     p.requests.insert(request.clone(), *waiting);
                 }
@@ -905,6 +938,8 @@ mod tests {
         f.append("response_item",json!({"type":"function_call","call_id":"call-1","name":"request_user_input","arguments":"PRIVATE PROMPT"}));
         let events = f.poll(true);
         assert_eq!(kinds(&events), ["working", "tool_started", "attention"]);
+        assert_eq!(events.last().unwrap()["schema_version"], 2);
+        assert_eq!(events.last().unwrap()["attention_kind"], "input");
         assert!(!serde_json::to_string(&events).unwrap().contains("PRIVATE"));
         f.append(
             "response_item",

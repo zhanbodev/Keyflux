@@ -1,5 +1,8 @@
 # Extension Interface Specification
 
+2026-10-27: [AgentEvent v2](specs/agent-event-v2.md) and [Theme v3](specs/theme-v3.md) explicitly extend the draft contracts for P0 verification and main-zone actions. Existing v1/v2 inputs remain supported; new fields require the new version. See [P0 workflows](P0_WORKFLOWS.md).
+
+
 **English** | [简体中文](EXTENSIONS.zh-CN.md)
 
 Status: **v1 draft for Keyflux v0.1**. This document describes the implemented extension surfaces and contributor obligations. Sections marked **planned** are design boundaries, not callable APIs. The Zig types and validators are the executable source of truth; JSON Schemas cover structural validation but cannot express every cross-field or lifecycle rule.

@@ -1,16 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { defaultTheme, parseTheme, sideSignal } from './theme';
-describe('Theme v2 editor boundary', () => {
+describe('Theme v3 editor boundary', () => {
   it('migrates v1 explicitly and preserves independent side edits', () => {
     const original = defaultTheme();
     const v1 = {
       schema_version: 1,
       name: original.name,
-      signals: original.signals,
+      signals: Object.fromEntries(
+        Object.entries(original.signals).filter(
+          ([p]) => !['checking', 'verified', 'check_failed'].includes(p),
+        ),
+      ),
       completion_hold_ms: 5000,
     };
     const migrated = parseTheme(v1);
-    expect(migrated.schema_version).toBe(2);
+    expect(migrated.schema_version).toBe(3);
     expect(migrated.side.enabled).toBe(false);
     migrated.side.signals.thinking.color = '#FF0000';
     expect(migrated.signals.thinking.color).toBe('#06B6D4');
@@ -64,4 +68,13 @@ describe('Theme v2 editor boundary', () => {
     mutate(theme);
     expect(() => parseTheme(theme)).toThrow();
   });
+});
+
+it('persists per-state effects and rejects invalid native action controls', () => {
+  const theme = defaultTheme();
+  theme.actions.attention = { effect: 'blink', speed: 2 };
+  expect(parseTheme(theme).actions.attention).toEqual({ effect: 'blink', speed: 2 });
+  theme.actions.attention.speed = 0;
+  expect(() => parseTheme(theme)).toThrow();
+  expect(() => parseTheme({ schema_version: 2, actions: {} })).toThrow();
 });

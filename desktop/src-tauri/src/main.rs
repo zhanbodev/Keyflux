@@ -37,6 +37,7 @@ async fn get_status(core: State<'_, Shared>, source: State<'_, SharedSource>) ->
                 core.call("status", None)?
             }
         };
+        value["tasks"] = core.call("tasks", None)?["tasks"].clone();
         value["desktop"] = core.context();
         value["desktop"]["source"] = source.snapshot();
         Ok(value)
@@ -153,6 +154,61 @@ async fn export_theme(
     })
     .await
 }
+#[tauri::command]
+async fn acknowledge_task(
+    core: State<'_, Shared>,
+    provider: String,
+    session_id: String,
+    turn_id: String,
+) -> Reply {
+    let core = core.inner().clone();
+    blocking(move || core.acknowledge(&provider, &session_id, &turn_id)).await
+}
+#[tauri::command]
+async fn open_task(
+    core: State<'_, Shared>,
+    provider: String,
+    session_id: String,
+    turn_id: String,
+) -> Result<(), String> {
+    let core = core.inner().clone();
+    blocking(move || {
+        let tasks = core.call("tasks", None)?;
+        if provider != "codex.desktop.local"
+            || session_id.len() != 36
+            || !session_id
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() || b == b'-')
+            || !tasks["tasks"].as_array().is_some_and(|rows| {
+                rows.iter().any(|r| {
+                    r["provider"] == provider
+                        && r["session_id"] == session_id
+                        && r["turn_id"] == turn_id
+                })
+            })
+        {
+            return Err("InvalidTaskLink".into());
+        }
+        let url = format!("codex://threads/{session_id}");
+        #[cfg(target_os = "macos")]
+        let result = std::process::Command::new("/usr/bin/open")
+            .arg(url)
+            .status();
+        #[cfg(target_os = "windows")]
+        let result = std::process::Command::new("rundll32.exe")
+            .args(["url.dll,FileProtocolHandler", &url])
+            .status();
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        return Err("UnsupportedPlatform".into());
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        if result.is_ok_and(|s| s.success()) {
+            Ok(())
+        } else {
+            Err("TaskOpenFailed".into())
+        }
+    })
+    .await
+}
 fn show_settings(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("settings") {
         let _ = window.show();
@@ -200,7 +256,9 @@ fn main() {
             connect_device,
             disconnect_device,
             import_theme,
-            export_theme
+            export_theme,
+            acknowledge_task,
+            open_task
         ])
         .setup(|app| {
             let settings = MenuItem::with_id(app, "settings", "设置…", true, None::<&str>)?;

@@ -82,6 +82,7 @@ if (check) {
   ])
     run(python, [test]);
   run(python, ['tests/integration.py', binary]);
+  run(python, ['tests/workflow.py', binary]);
   console.log('Desktop and Zig checks passed.');
   process.exit(0);
 }

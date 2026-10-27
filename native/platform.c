@@ -738,3 +738,121 @@ int kf_hid_diagnose(char *out, size_t cap) {
     memcpy(out + n, "]}\n", 3);
     return (int)(n + 3);
 }
+
+static uint32_t check_exit_code;
+
+/* Check runner: argv is passed directly, never through a shell. Output stays
+   attached to the caller's terminal and is never captured by Keyflux. */
+#ifdef _WIN32
+static intptr_t check_child = -1;
+#else
+#include <sys/wait.h>
+static pid_t check_child = -1;
+static volatile sig_atomic_t check_signal;
+static void check_interrupt(int sig) {
+    check_signal = sig;
+    if (check_child > 0)
+        kill(check_child, sig);
+}
+#endif
+#ifdef _WIN32
+/* Microsoft argv quoting rules, including embedded quotes and trailing slashes.
+   CreateProcessW avoids shell evaluation and preserves UTF-8 command arguments. */
+static HANDLE spawn_check(const char *const *argv) {
+    wchar_t *line = calloc(32768, sizeof(wchar_t));
+    size_t used = 0;
+    if (!line)
+        return INVALID_HANDLE_VALUE;
+    for (size_t i = 0; argv[i]; ++i) {
+        int count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, argv[i], -1, NULL, 0);
+        if (!count || used + (size_t)count * 2 + 4 >= 32768) {
+            free(line);
+            return INVALID_HANDLE_VALUE;
+        }
+        wchar_t *arg = calloc((size_t)count, sizeof(wchar_t));
+        if (!arg) {
+            free(line);
+            return INVALID_HANDLE_VALUE;
+        }
+        MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, argv[i], -1, arg, count);
+        if (i)
+            line[used++] = L' ';
+        line[used++] = L'"';
+        size_t slashes = 0;
+        for (size_t j = 0; j < (size_t)count; ++j) {
+            wchar_t c = arg[j];
+            if (c == L'\\') {
+                ++slashes;
+                continue;
+            }
+            size_t copies = (c == L'"' || c == 0) ? slashes * 2 : slashes;
+            if (c == L'"')
+                ++copies;
+            while (copies--)
+                line[used++] = L'\\';
+            slashes = 0;
+            if (!c)
+                break;
+            line[used++] = c;
+        }
+        line[used++] = L'"';
+        free(arg);
+    }
+    STARTUPINFOW startup = {0};
+    startup.cb = sizeof(startup);
+    PROCESS_INFORMATION process = {0};
+    BOOL ok = CreateProcessW(NULL, line, NULL, NULL, TRUE, 0, NULL, NULL, &startup, &process);
+    free(line);
+    if (!ok)
+        return INVALID_HANDLE_VALUE;
+    CloseHandle(process.hThread);
+    return process.hProcess;
+}
+#endif
+int kf_check_start(const char *const *argv) {
+#ifdef _WIN32
+    check_child = (intptr_t)spawn_check(argv);
+    return check_child == (intptr_t)INVALID_HANDLE_VALUE ? -1 : 0;
+#else
+    check_signal = 0;
+    struct sigaction action = {0};
+    action.sa_handler = check_interrupt;
+    sigemptyset(&action.sa_mask);
+    sigaction(SIGINT, &action, NULL);
+    sigaction(SIGTERM, &action, NULL);
+    check_child = fork();
+    if (check_child == 0) {
+        signal(SIGINT, SIG_DFL);
+        signal(SIGTERM, SIG_DFL);
+        execvp(argv[0], (char *const *)argv);
+        _exit(127);
+    }
+    return check_child < 0 ? -1 : 0;
+#endif
+}
+/* -1 = still running; 0..255 = exit status; cancellation is >=128. */
+int kf_check_poll(void) {
+#ifdef _WIN32
+    if (WaitForSingleObject((HANDLE)check_child, 0) == WAIT_TIMEOUT)
+        return -1;
+    DWORD code = 127;
+    GetExitCodeProcess((HANDLE)check_child, &code);
+    CloseHandle((HANDLE)check_child);
+    check_child = -1;
+    check_exit_code = code;
+    return (int)(code <= 255 ? code : code == 0xC000013A ? 130 : 1);
+#else
+    int status;
+    pid_t result = waitpid(check_child, &status, WNOHANG);
+    if (result == 0 || (result < 0 && errno == EINTR))
+        return -1;
+    check_child = -1;
+    check_exit_code = result < 0          ? 127
+                      : check_signal      ? 128 + check_signal
+                      : WIFEXITED(status) ? WEXITSTATUS(status)
+                                          : 128 + WTERMSIG(status);
+    return (int)check_exit_code;
+#endif
+}
+
+uint32_t kf_check_result(void) { return check_exit_code; }

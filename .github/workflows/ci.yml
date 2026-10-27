@@ -21,9 +21,11 @@ jobs:
       - run: zig build test
       - run: zig build -Doptimize=ReleaseSafe
       - run: python tests/integration.py zig-out/bin/keyflux${{ runner.os == 'Windows' && '.exe' || '' }}
+      - run: python tests/workflow.py zig-out/bin/keyflux${{ runner.os == 'Windows' && '.exe' || '' }}
       - run: zig-out/bin/keyflux${{ runner.os == 'Windows' && '.exe' || '' }} validate-model models/nuphy-kick75-io.json
       - run: zig-out/bin/keyflux${{ runner.os == 'Windows' && '.exe' || '' }} validate-theme examples/theme.json
       - run: zig-out/bin/keyflux${{ runner.os == 'Windows' && '.exe' || '' }} validate-theme examples/theme-v2.json
+      - run: zig-out/bin/keyflux${{ runner.os == 'Windows' && '.exe' || '' }} validate-theme examples/theme-v3.json
   desktop:
     strategy:
       fail-fast: false

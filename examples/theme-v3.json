@@ -1,0 +1,123 @@
+{
+  "schema_version": 3,
+  "name": "Keyflux",
+  "completion_hold_ms": 5000,
+  "signals": {
+    "working": {
+      "color": "#3B82F6",
+      "brightness": 50
+    },
+    "thinking": {
+      "color": "#06B6D4",
+      "brightness": 50
+    },
+    "output": {
+      "color": "#8B5CF6",
+      "brightness": 50
+    },
+    "tool": {
+      "color": "#3B82F6",
+      "brightness": 50
+    },
+    "attention": {
+      "color": "#F97316",
+      "brightness": 50
+    },
+    "complete": {
+      "color": "#22C55E",
+      "brightness": 50
+    },
+    "error": {
+      "color": "#EF4444",
+      "brightness": 50
+    },
+    "checking": {
+      "color": "#6366F1",
+      "brightness": 50
+    },
+    "verified": {
+      "color": "#22C55E",
+      "brightness": 50
+    },
+    "check_failed": {
+      "color": "#F43F5E",
+      "brightness": 50
+    }
+  },
+  "side": {
+    "enabled": true,
+    "mode": "independent",
+    "signals": {
+      "working": {
+        "color": "#3B82F6",
+        "brightness": 50
+      },
+      "thinking": {
+        "color": "#22D3EE",
+        "brightness": 50
+      },
+      "output": {
+        "color": "#C084FC",
+        "brightness": 50
+      },
+      "tool": {
+        "color": "#3B82F6",
+        "brightness": 50
+      },
+      "attention": {
+        "color": "#F97316",
+        "brightness": 50
+      },
+      "complete": {
+        "color": "#22C55E",
+        "brightness": 50
+      },
+      "error": {
+        "color": "#EF4444",
+        "brightness": 50
+      }
+    }
+  },
+  "actions": {
+    "working": {
+      "effect": "marquee",
+      "speed": 2
+    },
+    "thinking": {
+      "effect": "solid",
+      "speed": 3
+    },
+    "output": {
+      "effect": "solid",
+      "speed": 3
+    },
+    "tool": {
+      "effect": "solid",
+      "speed": 3
+    },
+    "attention": {
+      "effect": "blink",
+      "speed": 1
+    },
+    "complete": {
+      "effect": "solid",
+      "speed": 3
+    },
+    "error": {
+      "effect": "solid",
+      "speed": 3
+    },
+    "checking": {
+      "effect": "orbit",
+      "speed": 2
+    },
+    "verified": {
+      "effect": "solid",
+      "speed": 3
+    },
+    "check_failed": {
+      "effect": "solid",
+      "speed": 3
+    }
+  }
+}

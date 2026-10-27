@@ -49,6 +49,7 @@ impl Core {
     pub fn call(&self, op: &str, input: Option<&Value>) -> Result<Value, String> {
         if ![
             "status",
+            "tasks",
             "theme-get",
             "theme-set",
             "validate-theme",
@@ -87,24 +88,37 @@ impl Core {
             .get("brightness")
             .and_then(Value::as_u64)
             .ok_or("InvalidSignal")?;
-        if object.len() != 2
+        let effect = match object.get("effect") {
+            None => "solid",
+            Some(value) => value.as_str().ok_or("InvalidSignal")?,
+        };
+        let speed = match object.get("speed") {
+            None => 3,
+            Some(value) => value.as_u64().ok_or("InvalidSignal")?,
+        };
+        if !object
+            .keys()
+            .all(|k| ["color", "brightness", "effect", "speed"].contains(&k.as_str()))
             || color.len() != 7
             || !color.starts_with('#')
             || !color.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit)
             || brightness > 100
+            || !(1..=5).contains(&speed)
+            || !["solid", "marquee", "orbit", "blink"].contains(&effect)
         {
             return Err("InvalidSignal".into());
         }
         self.execute(
-            &[
-                "hardware-solid",
-                color,
-                &brightness.to_string(),
-                "--expect-device",
-                identity,
-            ],
-            None,
+            &["hardware-effect", "--expect-device", identity],
+            Some(&json!({"color":color,"brightness":brightness,"effect":effect,"speed":speed})),
             false,
+        )
+    }
+    pub fn acknowledge(&self, provider: &str, session: &str, turn: &str) -> Result<Value, String> {
+        self.execute(
+            &["acknowledge"],
+            Some(&json!({"provider":provider,"session_id":session,"turn_id":turn})),
+            true,
         )
     }
     pub fn restore_device(&self, identity: &str) -> Result<Value, String> {

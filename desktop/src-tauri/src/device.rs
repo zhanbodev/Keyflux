@@ -110,6 +110,11 @@ fn public(session: &Session) -> Value {
     if let Some(probe) = &session.probe {
         let f = &probe["firmware"];
         result["writable"] = json!(writable(probe));
+        result["native_main_effects"] = if writable(probe) {
+            json!(["solid", "marquee", "orbit", "blink"])
+        } else {
+            json!([])
+        };
         result["can_restore"] = json!(writable(probe) && recovery.required && recovery.compatible);
         result["model_id"] = probe["model_id"].clone();
         result["firmware"] = json!(format!(
@@ -280,12 +285,19 @@ impl Device {
                     match phase {
                         "idle" | "unknown" => None,
                         "working" | "thinking" | "output" | "tool" | "attention" | "complete"
-                        | "error" => {
+                        | "error" | "checking" | "verified" | "check_failed" => {
                             let signal = status["result"]
                                 .get("lighting")
                                 .filter(|s| !s.is_null())
                                 .ok_or("InvalidAgentStatus")?;
-                            Some(signal.clone())
+                            let mut intent = signal.clone();
+                            if let Some(action) =
+                                status["result"].get("action").filter(|a| !a.is_null())
+                            {
+                                intent["effect"] = action["effect"].clone();
+                                intent["speed"] = action["speed"].clone();
+                            }
+                            Some(intent)
                         }
                         _ => return Err("InvalidAgentStatus".into()),
                     }
@@ -459,6 +471,35 @@ mod tests {
     }
     fn agent_status(phase: &str, color: &str) -> Value {
         json!({"result":{"backend":"read-only","state":{"phase":phase},"lighting":{"color":color,"brightness":15}}})
+    }
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn effect_and_speed_changes_write_once_and_unchanged_polls_do_not_animate_on_host() {
+        let hardware = Fake::default();
+        let device = Device::default();
+        device.connect_hardware(&hardware).unwrap();
+        device.start_following(&hardware).unwrap();
+        let mut status = agent_status("checking", "#6366F1");
+        status["result"]["action"] = json!({"effect":"orbit","speed":2});
+        device.follow_status(&hardware, Some(&status)).unwrap();
+        device.follow_status(&hardware, Some(&status)).unwrap();
+        status["result"]["action"]["speed"] = json!(4);
+        device.follow_status(&hardware, Some(&status)).unwrap();
+        status["result"]["action"]["effect"] = json!("blink");
+        device.follow_status(&hardware, Some(&status)).unwrap();
+        device.follow_status(&hardware, Some(&status)).unwrap();
+        assert_eq!(
+            hardware
+                .calls
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|s| *s == "apply")
+                .count(),
+            3
+        );
+        device.follow_status(&hardware, None).unwrap();
+        assert!(hardware.calls.lock().unwrap().contains(&"restore".into()));
     }
     #[cfg(target_os = "macos")]
     #[test]

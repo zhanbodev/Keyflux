@@ -16,11 +16,14 @@ const usage =
     \\  keyflux hardware-probe                 Read-only Kick75 firmware / light state
     \\  keyflux hardware-status                Read-only device + durable recovery status
     \\  keyflux hardware-solid '#00FFFF' 15    Manual main-light color; durable capture
+    \\  keyflux hardware-effect                Main-zone native action JSON on stdin
     \\  keyflux hardware-restore               Restore captured main-light effect
     \\  keyflux hardware-verify-restore        Test exact current-state roundtrip; keep journal
     \\  keyflux serve [--simulate] [--otlp-port 4318]
     \\  keyflux emit [event.json]               AgentEvent v1 → running core
     \\  keyflux hook                           Codex hook JSON on stdin (always non-blocking semantics)
+    \\  keyflux check test|build [--label ID] -- command [args]   Report a real process exit result
+    \\  keyflux tasks | acknowledge PROVIDER SESSION TURN
     \\  keyflux status | stop | theme-get
     \\  keyflux theme-set theme.json | preview thinking | reset
     \\  keyflux replay events.jsonl            Offline deterministic state replay
@@ -29,7 +32,7 @@ const usage =
     \\  keyflux setup-codex /absolute/keyflux   Print reviewable hook and OTel fragments
     \\  --state-dir PATH                       Isolated runtime data / IPC namespace
     \\Hardware commands: experimental macOS / USB / Kick75 4.0.18.6 / Mac profile only.
-    \\They use the default state directory; AI events never drive physical lighting.
+    \\Hardware commands use the default recovery directory; the desktop follower owns writes.
     \\
 ;
 
@@ -127,10 +130,11 @@ const Runtime = struct {
         backend: []const u8,
         main_write_enabled: bool,
         side_write_enabled: bool = false,
-        theme_schema_versions: [2]u16 = .{ 1, 2 },
+        theme_schema_versions: [3]u16 = .{ 1, 2, 3 },
         release_ready: bool = false,
         acknowledged: ?devices.Lighting,
         lighting: ?themes.Signal,
+        action: themes.Action,
         otlp_port: u16,
         device_error: ?[]const u8,
         evidence: Evidence,
@@ -140,13 +144,21 @@ const Runtime = struct {
     fn snapshot(self: *Runtime, now: u64) Status {
         var stats: [3]u64 = @splat(0);
         const available = p.kf_process_stats(&stats) == 0;
-        return .{ .runtime_id = self.runtime_id, .schema_version = 1, .version = "0.1.0-dev", .state = self.core.snapshot(now), .backend = if (self.simulated) "simulated" else "read-only", .main_write_enabled = self.simulated, .release_ready = false, .acknowledged = self.lease.acknowledged, .lighting = self.theme.signal(self.core.snapshot(now).phase), .otlp_port = self.otlp_port, .device_error = self.device_error, .evidence = self.evidence, .preview = self.preview_phase, .process_metrics = .{ .available = available, .cpu_time_ns = stats[0], .resident_bytes = stats[1], .monotonic_ns = stats[2] } };
+        return .{ .runtime_id = self.runtime_id, .schema_version = 1, .version = "0.1.0-dev", .state = self.core.snapshot(now), .backend = if (self.simulated) "simulated" else "read-only", .main_write_enabled = self.simulated, .release_ready = false, .acknowledged = self.lease.acknowledged, .lighting = self.theme.signal(self.core.snapshot(now).phase), .action = self.theme.action(self.core.snapshot(now).phase), .otlp_port = self.otlp_port, .device_error = self.device_error, .evidence = self.evidence, .preview = self.preview_phase, .process_metrics = .{ .available = available, .cpu_time_ns = stats[0], .resident_bytes = stats[1], .monotonic_ns = stats[2] } };
     }
     fn handle(self: *Runtime, a: Allocator, bytes: []const u8, now: u64) ![]const u8 {
         const parsed = try std.json.parseFromSlice(Value, a, bytes, .{ .max_value_len = max_request });
         const value = parsed.value;
         const op = codex.string(codex.field(value, "op")) orelse return error.MissingOperation;
         if (eq(op, "status")) return encoded(a, .{ .ok = true, .result = self.snapshot(now) });
+        if (eq(op, "tasks")) return encoded(a, .{ .ok = true, .tasks = try self.core.list(a, now) });
+        if (eq(op, "acknowledge")) {
+            const provider = codex.string(codex.field(value, "provider")) orelse return error.InvalidIdentifier;
+            const session = codex.string(codex.field(value, "session_id")) orelse return error.InvalidIdentifier;
+            const turn = codex.string(codex.field(value, "turn_id")) orelse return error.InvalidIdentifier;
+            try self.core.acknowledge(provider, session, turn);
+            return encoded(a, .{ .ok = true });
+        }
         if (eq(op, "stop")) {
             self.stopping = true;
             return encoded(a, .{ .ok = true });
@@ -358,6 +370,10 @@ fn run(init: std.process.Init) !void {
     var expected_device: ?[]const u8 = null;
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
+        if (eq(args[i], "--")) {
+            try positional.appendSlice(a, args[i..]);
+            break;
+        }
         if (eq(args[i], "--state-dir")) {
             i += 1;
             if (i == args.len) return error.MissingArgument;
@@ -421,17 +437,24 @@ fn run(init: std.process.Init) !void {
         try output(a, keyboard.info);
         return;
     }
-    if (eq(command, "hardware-solid") or eq(command, "hardware-restore") or eq(command, "hardware-verify-restore")) {
+    if (eq(command, "hardware-solid") or eq(command, "hardware-effect") or eq(command, "hardware-restore") or eq(command, "hardware-verify-restore")) {
         // A single canonical journal prevents nested ownership across state dirs.
         if (directory != null or simulate or port != 0) return error.HardwareRequiresDefaultStateDirectory;
         var light: ?devices.Lighting = null;
+        var action: themes.Action = .{};
         if (eq(command, "hardware-solid")) {
             if (positional.items.len != 3) return error.ExpectedColorAndBrightness;
             light = .{ .color = try themes.Color.parse(positional.items[1]), .brightness = try std.fmt.parseInt(u8, positional.items[2], 10) };
             if (light.?.brightness > 100) return error.InvalidBrightness;
+        } else if (eq(command, "hardware-effect")) {
+            if (positional.items.len != 1) return error.UnexpectedArgument;
+            const payload = try std.json.parseFromSlice(struct { color: []const u8, brightness: u8, effect: themes.Effect, speed: u8 }, a, try input(init, null), .{});
+            light = .{ .color = try themes.Color.parse(payload.value.color), .brightness = payload.value.brightness };
+            action = .{ .effect = payload.value.effect, .speed = payload.value.speed };
+            if (light.?.brightness > 100 or action.speed < 1 or action.speed > 5) return error.InvalidSignal;
         } else if (positional.items.len != 1) return error.UnexpectedArgument;
         if (p.kf_init(null) != 0) return error.StateDirectoryUnavailable;
-        try hardware(a, light, eq(command, "hardware-verify-restore"), expected_device);
+        try hardware(a, light, action, eq(command, "hardware-verify-restore"), expected_device);
         return;
     }
     if (expected_device != null) return error.UnexpectedArgument;
@@ -484,6 +507,24 @@ fn run(init: std.process.Init) !void {
         try serve(a, simulate, port);
         return;
     }
+    if (eq(command, "check")) {
+        try runCheck(a, positional.items);
+        return;
+    }
+    if (eq(command, "acknowledge")) {
+        const Identity = struct { provider: []const u8, session_id: []const u8, turn_id: []const u8 };
+        const identity: Identity = if (positional.items.len == 1)
+            (try std.json.parseFromSlice(Identity, a, try input(init, null), .{})).value
+        else if (positional.items.len == 4)
+            .{ .provider = positional.items[1], .session_id = positional.items[2], .turn_id = positional.items[3] }
+        else
+            return error.ExpectedTaskIdentity;
+        for ([_][]const u8{ identity.provider, identity.session_id, identity.turn_id }) |id| try events.validId(id);
+        const response = try request(a, try encoded(a, .{ .op = "acknowledge", .provider = identity.provider, .session_id = identity.session_id, .turn_id = identity.turn_id }));
+        try checkResponse(a, response);
+        p.kf_print(response.ptr, response.len, 0);
+        return;
+    }
     if (eq(command, "emit")) {
         const raw = try input(init, file);
         const e = try events.parse(a, raw);
@@ -504,12 +545,12 @@ fn run(init: std.process.Init) !void {
             break :blk try encoded(a, .{ .op = command, .phase = phase, .signal = signal.value });
         }
         break :blk try encoded(a, .{ .op = command, .phase = phase });
-    } else if (eq(command, "status") or eq(command, "stop") or eq(command, "theme-get") or eq(command, "reset")) try encoded(a, .{ .op = command }) else return error.UnknownCommand;
+    } else if (eq(command, "status") or eq(command, "stop") or eq(command, "theme-get") or eq(command, "reset") or eq(command, "tasks")) try encoded(a, .{ .op = command }) else return error.UnknownCommand;
     const response = try request(a, payload);
     p.kf_print(response.ptr, response.len, 0);
     try checkResponse(a, response);
 }
-fn hardware(a: Allocator, light: ?devices.Lighting, roundtrip: bool, expected_device: ?[]const u8) !void {
+fn hardware(a: Allocator, light: ?devices.Lighting, action: themes.Action, roundtrip: bool, expected_device: ?[]const u8) !void {
     var keyboard: kick75.Keyboard = .{};
     try keyboard.connect();
     defer keyboard.close(); // Holds the per-user hardware lock throughout journal IO.
@@ -543,7 +584,7 @@ fn hardware(a: Allocator, light: ?devices.Lighting, roundtrip: bool, expected_de
     }
     if (light) |value| {
         try journal.guardSolid(keyboard.info);
-        const target = try kick75.solidState(keyboard.info.state, value.color, value.brightness);
+        const target = try kick75.effectState(keyboard.info.state, value.color, value.brightness, action);
         var wire = target[0..9].*;
         wire[6..9].* = .{ value.color.r, value.color.g, value.color.b };
         if (kick75.solidMatches(target, wire, keyboard.info.state)) {
@@ -555,7 +596,7 @@ fn hardware(a: Allocator, light: ?devices.Lighting, roundtrip: bool, expected_de
         journal.expected = target;
         journal.pending = true;
         try writeState(a, "kick75-recovery.json", journal);
-        const after = hardwareSolid(&keyboard, value) catch |err| {
+        const after = hardwareEffect(&keyboard, target, wire) catch |err| {
             const observed = keyboard.readState() catch null;
             const diagnostic = try encoded(a, .{ .operation = "set-main", .requested = target, .observed = observed, .code = @errorName(err), .rollback = "attempting" });
             p.kf_print(diagnostic.ptr, diagnostic.len, 1);
@@ -588,11 +629,8 @@ fn hardware(a: Allocator, light: ?devices.Lighting, roundtrip: bool, expected_de
         try output(a, .{ .ok = true, .restored = true, .configuration_readback = true, .state = after, .side_preserved = true, .recovery_pending = false });
     }
 }
-fn hardwareSolid(keyboard: *kick75.Keyboard, value: devices.Lighting) ![17]u8 {
-    const target = try kick75.solidState(keyboard.info.state, value.color, value.brightness);
-    var wire = target[0..9].*;
-    wire[6..9].* = .{ value.color.r, value.color.g, value.color.b };
-    try keyboard.driver().setSolid(value);
+fn hardwareEffect(keyboard: *kick75.Keyboard, target: [17]u8, wire: [9]u8) ![17]u8 {
+    _ = try kick75.writeEffect(keyboard, target[0..9].*, wire);
     const after = try keyboard.readState();
     if (!kick75.solidMatches(target, wire, after)) return error.ReadbackMismatch;
     return after;
@@ -625,4 +663,61 @@ fn setup(a: Allocator, path: []const u8) !void {
         .otel = .{ .endpoint = "http://127.0.0.1:4318/v1/logs", .protocol = "binary", .log_user_prompt = false, .authorization = "Bearer <read otlp-token from Keyflux state directory>" },
         .notes = "Merge only after review; preserve existing hooks/exporter. Codex hook trust and restart are required. Probe real field names, correlation and export delay before release.",
     });
+}
+
+// Verified process results, no command-name guessing or output inspection.
+fn runCheck(a: Allocator, args: []const []const u8) !void {
+    var command_index: usize = 3;
+    var label: ?[]const u8 = null;
+    if (args.len >= 6 and eq(args[2], "--label")) {
+        label = args[3];
+        command_index = 5;
+    }
+    if (args.len <= command_index or !eq(args[command_index - 1], "--")) return error.ExpectedCheckCommand;
+    if (!eq(args[1], "test") and !eq(args[1], "build")) return error.InvalidCheckType;
+    const check_type = std.meta.stringToEnum(events.CheckType, args[1]).?;
+    const id = try unique(a);
+    var e: events.Event = .{ .schema_version = 2, .provider = "keyflux.check", .session_id = id, .turn_id = id, .event_id = id, .timestamp_ns = p.kf_now_ns(), .kind = .check_started, .check_type = check_type, .label = label };
+    try sendCheck(a, &e);
+    e.label = null;
+    const argv = try a.allocSentinel(?[*:0]const u8, args.len - command_index, null);
+    for (args[command_index..], 0..) |arg, index| argv[index] = (try a.dupeSentinel(u8, arg, 0)).ptr;
+    if (p.kf_check_start(argv.ptr) != 0) {
+        e.kind = .check_failed;
+        try sendCheck(a, &e);
+        return error.CheckLaunchFailed;
+    }
+    var last = p.kf_monotonic_ns();
+    while (true) {
+        const code = p.kf_check_poll();
+        if (code >= 0) {
+            e.kind = if (code == 0) .check_passed else if (code >= 128) .check_cancelled else .check_failed;
+            sendCheck(a, &e) catch {
+                const message = "Keyflux: result delivery failed; command exit status preserved.\n";
+                p.kf_print(message.ptr, message.len, 1);
+            };
+            p.kf_exit(@bitCast(p.kf_check_result()));
+        }
+        const now = p.kf_monotonic_ns();
+        if (now - last >= 5 * std.time.ns_per_s) {
+            var heartbeat = e;
+            heartbeat.kind = .working;
+            heartbeat.check_type = null;
+            sendCheck(a, &heartbeat) catch {}; // Never interrupt the user's check.
+            last = now;
+        }
+        p.kf_sleep_ms(100);
+    }
+}
+fn sendCheck(a: Allocator, e: *const events.Event) !void {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    _ = a;
+    const scratch = arena.allocator();
+    var current_event = e.*;
+    current_event.event_id = try unique(scratch);
+    current_event.timestamp_ns = p.kf_now_ns();
+    try current_event.validate();
+    const response = try request(scratch, try encoded(scratch, .{ .op = "emit", .event = current_event }));
+    try checkResponse(scratch, response);
 }

@@ -1,0 +1,11 @@
+{
+  "schema_version": 2,
+  "provider": "example.check",
+  "session_id": "project-a",
+  "turn_id": "build-1",
+  "event_id": "start-1",
+  "timestamp_ns": 1700000000000000000,
+  "kind": "check_started",
+  "check_type": "build",
+  "label": "project-a"
+}

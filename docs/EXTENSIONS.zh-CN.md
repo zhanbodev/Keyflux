@@ -1,5 +1,8 @@
 # 扩展接口规范
 
+2026-10-27: [AgentEvent v2](specs/agent-event-v2.md) and [Theme v3](specs/theme-v3.md) explicitly extend the draft contracts for P0 verification and main-zone actions. Existing v1/v2 inputs remain supported; new fields require the new version. See [P0 workflows](P0_WORKFLOWS.md).
+
+
 [English](EXTENSIONS.md) | **简体中文**
 
 状态：**面向 Keyflux v0.1 的 v1 草案**。本文描述已实现的扩展入口和贡献者应遵循的约束。标记为“后续规划”的内容是设计边界，不是可调用 API。Zig 类型和校验器是可执行的事实依据；JSON Schema 负责结构校验，不能表达全部跨字段与生命周期规则。

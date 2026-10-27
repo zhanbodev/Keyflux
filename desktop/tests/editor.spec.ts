@@ -88,6 +88,7 @@ test('small supported windows keep every control on screen', async ({ page }) =>
     await page.setViewportSize({ width, height });
     await expect(page.getByRole('button', { name: '保存', exact: true })).toBeInViewport();
     await expect(page.getByLabel('亮度', { exact: true })).toBeInViewport();
+    await expect(page.getByRole('button', { name: '验证失败', exact: true })).toBeInViewport();
     await expect(page.getByLabel('完成色保持秒数')).toBeInViewport();
     expect(
       await page.evaluate(
@@ -216,4 +217,38 @@ test('unplug locks controls and requires a new user connection', async ({ page }
   await expect(page.getByLabel('红色通道')).toHaveValue('255');
   await expect(page.getByRole('menu')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '保存', exact: true })).toBeEnabled();
+});
+
+test('P0 tasks prioritize user input and failures and acknowledge exact results', async ({
+  page,
+}) => {
+  await installBridge(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: '连接键盘', exact: true }).click();
+  await page.getByRole('button', { name: '任务', exact: true }).click();
+  await expect(page.locator('.task-row').first()).toContainText('等待回答');
+  await expect(page.locator('.task-row').nth(1)).toContainText('keyflux · 构建');
+  await page.getByRole('button', { name: '打开', exact: true }).click();
+  await page.getByRole('button', { name: '已查看', exact: true }).click();
+  await expect(page.locator('.task-row')).toHaveCount(1);
+  await page.getByLabel('显示已确认').check();
+  await expect(page.locator('.task-row')).toHaveCount(2);
+  await page.screenshot({ path: 'test-results/p0-tasks.png' });
+});
+test('per-state native actions preview and save with no device preview command', async ({
+  page,
+}) => {
+  await installBridge(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: '连接键盘', exact: true }).click();
+  await page.getByRole('button', { name: '工作中', exact: true }).click();
+  await page.getByLabel('灯光动作', { exact: true }).click();
+  await page.getByRole('option', { name: '绕圈', exact: true }).click();
+  await expect(page.locator('.keyboard')).toHaveClass(/effect-orbit/);
+  await page.getByLabel('动作速度').fill('2');
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+  await expect(page.getByRole('button', { name: '保存', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: '工作中', exact: true }).click();
+  await expect(page.locator('.keyboard')).toHaveClass(/effect-orbit/);
+  await page.screenshot({ path: 'test-results/p0-effects.png' });
 });

@@ -8,6 +8,8 @@ fn main() {
         "disconnect_device",
         "import_theme",
         "export_theme",
+        "acknowledge_task",
+        "open_task",
     ]);
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest))
         .expect("desktop build configuration");

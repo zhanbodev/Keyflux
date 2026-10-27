@@ -1,6 +1,7 @@
 const std = @import("std");
 const theme = @import("theme.zig");
 pub const Capabilities = struct {
+    native_main_effects: []const theme.Effect = &.{},
     solid_main: bool = false,
     solid_side: bool = false,
     per_key: bool = false,

@@ -232,3 +232,32 @@ test "exact restore selects a different encoder only with proven HSV readback" {
     try expectError(error.ReadbackMismatch, k.restoreExact(&unexpected, saved));
     try expect(unexpected.writes == 1);
 }
+
+test "native effects are bounded main-only configurations not frame streams" {
+    const original = [17]u8{ 2, 60, 2, 1, 1, 0, 153, 153, 153, 0, 60, 2, 1, 0, 255, 0, 0 };
+    const rgb = @import("theme.zig").Color{ .r = 0, .g = 255, .b = 255 };
+    for ([_]@import("theme.zig").Effect{ .marquee, .orbit, .blink }, [_]u8{ 6, 10, 9 }) |effect, mode| {
+        const target = try k.effectState(original, rgb, 15, .{ .effect = effect, .speed = 2 });
+        try std.testing.expectEqual(mode, target[0]);
+        try std.testing.expectEqual(@as(u8, 3), target[2]);
+        try std.testing.expectEqualSlices(u8, original[9..17], target[9..17]);
+    }
+    try std.testing.expectError(error.InvalidSpeed, k.effectState(original, rgb, 15, .{ .effect = .orbit, .speed = 6 }));
+}
+
+test "native effect write verifies readback isolation and refuses stale captures" {
+    for ([_]@import("theme.zig").Effect{ .marquee, .orbit, .blink }) |effect| {
+        var dev: Mock = .{};
+        const target = try k.effectState(dev.state, .{ .r = 0, .g = 255, .b = 255 }, 15, .{ .effect = effect, .speed = 2 });
+        const wire = target[0..9].*;
+        const after = try k.writeEffect(&dev, wire, wire);
+        try eql(u8, &target, &after);
+        try expect(dev.writes == 1);
+        _ = try k.restoreExact(&dev, fixture().state[0..9].*);
+        try eql(u8, &fixture().state, &dev.state);
+        dev = .{};
+        dev.state[1] += 1;
+        try expectError(error.ConcurrentDeviceChange, k.writeEffect(&dev, wire, wire));
+        try expect(dev.writes == 0);
+    }
+}

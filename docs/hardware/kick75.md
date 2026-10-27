@@ -2,6 +2,14 @@
 
 **Status: experimental CLI and desktop following.** Tested with a physical USB Kick75 IO, firmware **4.0.18.6**, **Mac keyboard profile**, Apple Silicon macOS. The [initial evidence](../evidence/kick75-main-20261026.json) records manual protocol verification. On 2026-10-27 a real local Codex Desktop working state drove the App follower's main-light intent, passed independent D5 readback, preserved strip bytes and restored all 17 original bytes on disconnect. See [local source verification](../CODEX_LOCAL.md). The Zig event service retains a read-only backend; the native desktop session explicitly executes validated hardware commands after Connect. Windows and Win-profile writes remain disabled.
 
+
+P0 update: the same main-only D6 path now encodes native modes 6 (horizontal wave),
+10 (vortex) and 9 (glisten) with per-state Theme v3 actions. No host frame stream
+is sent. Software readback/restore/isolation tests pass; physical visual validation
+of these new effects is pending. See [P0 workflows](../P0_WORKFLOWS.md). An explicit
+manual test is available as `scripts/test-kick75-effects-macos.sh`; it refuses an
+existing capture so an older App's ownership cannot be silently replaced.
+
 ## Run locally
 
 ```sh

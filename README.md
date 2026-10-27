@@ -12,6 +12,7 @@ A local AI status lighting companion, built around a Zig core for macOS and Wind
 
 ## What works today
 
+- P0 task tracking: pending input/approval, explicit test/build results, per-turn acknowledgement and Codex chat links. Per-state native main-light actions include flowing wave, vortex and glisten. Results require a wrapped command or explicit adapter; new effects await physical validation. See [P0 workflows](docs/P0_WORKFLOWS.md), [AgentEvent v2](docs/specs/agent-event-v2.md) and [Theme v3](docs/specs/theme-v3.md).
 - A Zig state engine that aggregates sessions, correlates tool and approval events, and rejects stale events after a turn ends.
 - A development-only simulated keyboard for offline protocol tests, write deduplication and crash-recovery tests; the App never uses this backend.
 - Read-only NuPhy USB HID inventory, plus an experimental Kick75 IO (`19f5:1026`) main-light driver with manual solid colors, exact readback and durable raw-state recovery.

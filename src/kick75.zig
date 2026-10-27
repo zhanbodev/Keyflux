@@ -88,6 +88,22 @@ pub fn solidState(original: [17]u8, rgb: @import("theme.zig").Color, brightness:
     result[6..9].* = colors.readback(.{ rgb.r, rgb.g, rgb.b });
     return result;
 }
+/// Native firmware effects; no per-key stream or repeated host-frame writes.
+/// Common S4 mode IDs confirmed against NuPhy IO main.eff2c3e9.js.
+pub fn effectState(original: [17]u8, rgb: @import("theme.zig").Color, brightness: u8, action: @import("theme.zig").Action) ![17]u8 {
+    if (action.speed < 1 or action.speed > 5) return error.InvalidSpeed;
+    var result = try solidState(original, rgb, brightness);
+    if (action.effect == .solid) return result;
+    result[0] = switch (action.effect) {
+        .solid => 3,
+        .marquee => 6,
+        .orbit => 10,
+        .blink => 9,
+    };
+    result[2] = 5 - action.speed;
+    result[3] = 0;
+    return result;
+}
 pub fn reportShape(bytes: []const u8) !ReportShape {
     var size: u32 = 0;
     var count: u32 = 0;
@@ -231,7 +247,7 @@ pub const Keyboard = struct {
     }
     fn caps(context: *anyopaque) devices.Capabilities {
         writable(cast(context).info) catch return .{};
-        return .{ .solid_main = true, .readback = true, .restore = true };
+        return .{ .solid_main = true, .readback = true, .restore = true, .native_main_effects = &.{ .solid, .marquee, .orbit, .blink } };
     }
     fn capture(context: *anyopaque) !devices.Capture {
         const self = cast(context);
@@ -275,21 +291,27 @@ pub fn validateCapture(original: devices.Capture, current: Probe, identity: devi
     return raw.state[0..9].*;
 }
 pub fn writeMain(device: anytype, expected: [9]u8, input: [9]u8) ![17]u8 {
-    return writeChecked(device, expected, input, false);
+    return writeChecked(device, expected, input, false, null);
 }
 pub fn writeSolid(device: anytype, expected: [9]u8, input: [9]u8) ![17]u8 {
     if (expected[0] != 3 or expected[4] != 0 or !std.mem.eql(u8, expected[0..6], input[0..6]) or
         !std.mem.eql(u8, expected[6..9], &colors.readback(input[6..9].*))) return error.InvalidSolidTarget;
-    return writeChecked(device, expected, input, true);
+    return writeChecked(device, expected, input, true, null);
+}
+pub fn writeEffect(device: anytype, expected: [9]u8, input: [9]u8) ![17]u8 {
+    if ((expected[0] != 3 and expected[0] != 6 and expected[0] != 9 and expected[0] != 10) or expected[1] > 100 or expected[2] > 4 or expected[4] != 0 or expected[5] != 0 or
+        !std.mem.eql(u8, expected[0..6], input[0..6]) or !std.mem.eql(u8, expected[6..9], &colors.readback(input[6..9].*))) return error.InvalidEffectTarget;
+    return writeChecked(device, expected, input, true, device.info.state);
 }
 pub fn solidMatches(expected: [17]u8, input: [9]u8, observed: [17]u8) bool {
     return std.mem.eql(u8, &expected, &observed) or
         (std.mem.eql(u8, &input, observed[0..9]) and std.mem.eql(u8, expected[9..17], observed[9..17]));
 }
-fn writeChecked(device: anytype, expected: [9]u8, input: [9]u8, accept_direct: bool) ![17]u8 {
+fn writeChecked(device: anytype, expected: [9]u8, input: [9]u8, accept_direct: bool, guard: ?[17]u8) ![17]u8 {
     try writable(device.info);
     const before = try device.readState();
-    // Manual-only; persistence/flash behavior remains unverified.
+    if (guard) |state| if (!std.mem.eql(u8, &state, &before)) return error.ConcurrentDeviceChange;
+    // Configuration changes only; persistence/flash behavior remains unverified.
     device.delay(1000);
     const latest = try device.readState();
     if (!std.mem.eql(u8, &before, &latest)) return error.ConcurrentDeviceChange;

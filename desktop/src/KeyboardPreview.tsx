@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import kick from '../../assets/keyboard-layouts/nuphy-kick75-io.json';
-import type { Signal } from './theme';
+import type { Signal, Action } from './theme';
 // Only actual supported device layouts belong in the runtime catalog.
 export const layouts = [kick];
 type Key = (typeof kick.keys)[number];
@@ -20,10 +20,12 @@ export function KeyboardPreview({
   model,
   main,
   strip,
+  action,
 }: {
   model: string;
   main: Signal | null;
   strip: Signal | null;
+  action?: Action;
 }) {
   const layout = layouts.find((l) => l.id === model) ?? kick;
   const reference = layout.id === kick.id;
@@ -35,12 +37,13 @@ export function KeyboardPreview({
   });
   return (
     <div
-      className={`keyboard ${reference ? 'reference' : 'example'}`}
+      className={`keyboard ${reference ? 'reference' : 'example'} effect-${main ? (action?.effect ?? 'solid') : 'solid'}`}
       role="img"
       aria-label={`${layout.name} 灯光预览`}
       onDragStart={(event) => event.preventDefault()}
       style={
         {
+          '--effect-duration': `${6 - (action?.speed ?? 3)}s`,
           '--board-ratio': layout.width / layout.height,
           '--key-unit': `${100 / layout.width}cqw`,
           '--light-color': main && main.brightness > 0 ? main.color : '#55575a',
@@ -53,7 +56,25 @@ export function KeyboardPreview({
         const key = raw as Key;
         const symbol = key.symbol && icons[key.symbol];
         return (
-          <div className={`key ${key.kind}`} key={key.id} style={rect(key)} aria-hidden="true">
+          <div
+            className={`key ${key.kind}`}
+            key={key.id}
+            style={
+              {
+                ...rect(key),
+                '--key-x': key.x / layout.width,
+                '--key-y': key.y / layout.height,
+                '--key-angle':
+                  (Math.atan2(
+                    (key.y + key.h / 2) / layout.height - 0.5,
+                    (key.x + key.w / 2) / layout.width - 0.5,
+                  ) +
+                    Math.PI) /
+                  (2 * Math.PI),
+              } as CSSProperties
+            }
+            aria-hidden="true"
+          >
             {key.kind === 'knob' ? (
               reference ? (
                 <img className="knob-image" draggable={false} src="/reference/knob.webp" alt="" />

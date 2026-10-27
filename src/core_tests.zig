@@ -109,7 +109,7 @@ test "invalid input is transactional and unknown tasks require starts" {
     try testing.expectError(error.MissingTurnStart, c.apply(e(.thinking, "a", "1", "1", 1), 1));
     try testing.expectEqual(@as(u64, 0), c.revision);
     var invalid = e(.turn_started, "a", "1", "1", 1);
-    invalid.schema_version = 2;
+    invalid.schema_version = 99;
     try testing.expectError(error.UnsupportedVersion, c.apply(invalid, 1));
     _ = try c.apply(e(.turn_started, "a", "1", "1", 1), 1);
     try testing.expectError(error.TurnStillActive, c.apply(e(.turn_started, "a", "2", "2", 2), 2));
@@ -147,7 +147,7 @@ test "theme validation blocks malformed hex brightness version duration" {
     t.signals.output.brightness = 101;
     try testing.expectError(error.InvalidBrightness, t.validate());
     t = .{};
-    t.schema_version = 3;
+    t.schema_version = 99;
     try testing.expectError(error.UnsupportedVersion, t.validate());
     t = .{};
     t.completion_hold_ms = 0;
@@ -319,4 +319,129 @@ test "long running reader recycles ended sessions and rejects retired history" {
     try testing.expectEqual(@as(usize, 64), c.snapshot(1000).tracked_sessions);
     try testing.expectEqual(.stale, try c.apply(e(.turn_started, "session-0", "t", "delayed", 1), 1000));
     try testing.expectEqual(@as(usize, 0), c.snapshot(1000).active_tasks);
+}
+
+fn checkEvent(kind: Kind, id: []const u8, ts: u64) Event {
+    var v = e(kind, "check", "run", id, ts);
+    v.schema_version = 2;
+    v.provider = "keyflux.check";
+    v.check_type = .@"test";
+    return v;
+}
+test "verification is explicit and cannot be completed by ordinary AI completion" {
+    const c = try core();
+    defer testing.allocator.destroy(c);
+    _ = try c.apply(checkEvent(.check_started, "start", 1), 1);
+    try testing.expectEqual(.checking, c.snapshot(1).phase);
+    var ordinary = checkEvent(.turn_completed, "wrong", 2);
+    ordinary.check_type = null;
+    try testing.expectError(error.InvalidCheckEvent, c.apply(ordinary, 2));
+    _ = try c.apply(checkEvent(.check_passed, "pass", 3), 3);
+    try testing.expectEqual(.verified, c.snapshot(3).phase);
+    try testing.expectEqual(.stale, try c.apply(checkEvent(.check_failed, "late", 4), 4));
+    try testing.expectEqual(.idle, c.snapshot(3 + 6 * std.time.ns_per_s).phase);
+}
+test "check failure persists until exact terminal task acknowledgement without hiding approvals" {
+    const c = try core();
+    defer testing.allocator.destroy(c);
+    _ = try c.apply(checkEvent(.check_started, "start", 1), 1);
+    _ = try c.apply(checkEvent(.check_failed, "fail", 2), 2);
+    try testing.expectEqual(.check_failed, c.snapshot(100).phase);
+    _ = try c.apply(e(.turn_started, "ai", "turn", "start", 3), 3);
+    var wait = e(.attention, "ai", "turn", "wait", 4);
+    wait.request_id = "question";
+    wait.schema_version = 2;
+    wait.attention_kind = .input;
+    _ = try c.apply(wait, 4);
+    try testing.expectEqual(.attention, c.snapshot(4).phase);
+    try testing.expectError(error.TaskStillActive, c.acknowledge("codex", "ai", "turn"));
+    try testing.expectError(error.UnknownTask, c.acknowledge("keyflux.check", "check", "wrong"));
+    try c.acknowledge("keyflux.check", "check", "run");
+    try testing.expectEqual(.attention, c.snapshot(5).phase);
+    var resolved = e(.tool_finished, "ai", "turn", "answer", 6);
+    resolved.request_id = "question";
+    _ = try c.apply(resolved, 6);
+    try testing.expectEqual(.working, c.snapshot(6).phase);
+}
+test "check heartbeat expiry is unavailable not a guessed failure or completion" {
+    const c = try core();
+    defer testing.allocator.destroy(c);
+    _ = try c.apply(checkEvent(.check_started, "start", 1), 1);
+    try testing.expectEqual(.unknown, c.snapshot(31 * std.time.ns_per_s).phase);
+    var heartbeat = checkEvent(.working, "heartbeat", 32 * std.time.ns_per_s);
+    heartbeat.check_type = null;
+    _ = try c.apply(heartbeat, heartbeat.timestamp_ns);
+    try testing.expectEqual(.checking, c.snapshot(heartbeat.timestamp_ns).phase);
+    _ = try c.apply(checkEvent(.check_cancelled, "cancel", 33 * std.time.ns_per_s), 33 * std.time.ns_per_s);
+    try testing.expectEqual(.idle, c.snapshot(34 * std.time.ns_per_s).phase);
+}
+test "parallel check success never hides another running task; task views retain identities" {
+    const c = try core();
+    defer testing.allocator.destroy(c);
+    _ = try c.apply(e(.turn_started, "ai", "turn", "start", 1), 1);
+    _ = try c.apply(checkEvent(.check_started, "start", 2), 2);
+    _ = try c.apply(checkEvent(.check_passed, "pass", 3), 3);
+    try testing.expectEqual(.working, c.snapshot(3).phase);
+    const tasks = try c.list(testing.allocator, 3);
+    defer testing.allocator.free(tasks);
+    try testing.expectEqual(@as(usize, 2), tasks.len);
+    try testing.expectEqualStrings("ai", tasks[0].session_id);
+    try testing.expectEqual(.verified, tasks[1].phase);
+    try testing.expect(tasks[1].ended);
+}
+test "new event fields require explicit event v2 and matching check type" {
+    var v = checkEvent(.check_started, "start", 1);
+    v.schema_version = 1;
+    try testing.expectError(error.EventRequiresV2, v.validate());
+    v.schema_version = 2;
+    v.check_type = null;
+    try testing.expectError(error.InvalidCheckEvent, v.validate());
+    const c = try core();
+    defer testing.allocator.destroy(c);
+    _ = try c.apply(checkEvent(.check_started, "start", 1), 1);
+    v = checkEvent(.check_passed, "done", 2);
+    v.check_type = .build;
+    try testing.expectError(error.InvalidCheckEvent, c.apply(v, 2));
+    try testing.expectEqual(.checking, c.snapshot(2).phase);
+}
+test "theme v3 action contract validates speeds and preserves older export fields" {
+    var t: themes.Theme = .{ .schema_version = 3, .actions = .{} };
+    t.actions.?.attention = .{ .effect = .blink, .speed = 2 };
+    try t.validate();
+    try testing.expectEqual(.blink, t.action(.attention).effect);
+    t.actions.?.attention.speed = 0;
+    try testing.expectError(error.InvalidSpeed, t.validate());
+    t.schema_version = 2;
+    try testing.expectError(error.ActionsRequireThemeV3, t.validate());
+    const bytes = try std.json.Stringify.valueAlloc(testing.allocator, themes.Theme{}, .{});
+    defer testing.allocator.free(bytes);
+    try testing.expect(std.mem.indexOf(u8, bytes, "checking") == null);
+    try testing.expect(std.mem.indexOf(u8, bytes, "actions") == null);
+}
+
+test "old contracts reject new fields instead of silently changing semantics" {
+    const allocator = testing.allocator;
+    try testing.expectError(error.EventRequiresV2, @import("event.zig").parse(allocator, "{\"schema_version\":1,\"provider\":\"a\",\"session_id\":\"s\",\"turn_id\":\"t\",\"event_id\":\"e\",\"timestamp_ns\":1,\"kind\":\"turn_started\",\"attention_kind\":null}"));
+    try testing.expectError(error.ActionsRequireThemeV3, themes.parse(allocator, "{\"schema_version\":2,\"actions\":null}"));
+    try testing.expectError(error.SignalsRequireThemeV3, themes.parse(allocator, "{\"schema_version\":1,\"signals\":{\"checking\":{\"color\":\"#112233\",\"brightness\":50}}}"));
+}
+
+test "a terminal child does not replace the remaining root phase" {
+    const c = try core();
+    defer testing.allocator.destroy(c);
+    _ = try c.apply(e(.turn_started, "ai", "turn", "start", 1), 1);
+    _ = try c.apply(e(.output, "ai", "turn", "root-output", 2), 2);
+    var child = e(.turn_started, "ai", "turn", "child-start", 3);
+    child.task_id = "child";
+    _ = try c.apply(child, 3);
+    child.kind = .thinking;
+    child.event_id = "child-thinking";
+    child.timestamp_ns = 4;
+    _ = try c.apply(child, 4);
+    child.kind = .turn_completed;
+    child.event_id = "child-done";
+    child.timestamp_ns = 5;
+    _ = try c.apply(child, 5);
+    try testing.expectEqual(.output, c.snapshot(5).phase);
+    try testing.expectEqual(@as(usize, 1), c.snapshot(5).active_tasks);
 }

@@ -22,3 +22,6 @@ pub extern fn kf_kick_close() void;
 pub extern fn kf_kick_descriptor(out: [*]u8, capacity: usize) c_int;
 pub extern fn kf_kick_exchange(frame: *const [64]u8, reply: *[64]u8, key: u8) c_int;
 pub extern fn kf_sleep_ms(milliseconds: c_uint) void;
+pub extern fn kf_check_start(argv: [*:null]const ?[*:0]const u8) c_int;
+pub extern fn kf_check_poll() c_int;
+pub extern fn kf_check_result() u32;

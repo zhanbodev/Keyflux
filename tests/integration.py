@@ -114,7 +114,7 @@ class RuntimeTest(unittest.TestCase):
         for identity in ["too-short", "G" * 64]:
             result = self.call("hardware-solid", "#06B6D4", "15", "--expect-device", identity, check=False)
             self.assertEqual(json.loads(result.stdout)["code"], "InvalidDeviceIdentity")
-        for args in [("hardware-solid", "#06B6D4", "15"), ("hardware-restore",), ("hardware-verify-restore",)]:
+        for args in [("hardware-effect",), ("hardware-solid", "#06B6D4", "15"), ("hardware-restore",), ("hardware-verify-restore",)]:
             result = self.call(*args, check=False)
             self.assertEqual(result.returncode, 1)
             self.assertEqual(json.loads(result.stdout)["code"], "HardwareRequiresDefaultStateDirectory")
@@ -139,7 +139,7 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(saved["side"]["signals"]["thinking"]["color"], "#C084FC")
         self.assertEqual(saved["signals"]["thinking"]["color"], "#06B6D4")
         self.assertFalse(self.status()["side_write_enabled"])
-        self.assertEqual(self.status()["theme_schema_versions"], [1, 2])
+        self.assertEqual(self.status()["theme_schema_versions"], [1, 2, 3])
         self.emit("turn_started")
         self.emit("thinking")
         self.assertEqual(self.status()["acknowledged"]["color"], dict(r=6, g=182, b=212))
@@ -153,6 +153,20 @@ class RuntimeTest(unittest.TestCase):
         self.process.stderr.close()
         self.start()
         self.assertEqual(json.loads(self.call("theme-get").stdout)["theme"], saved)
+
+    def test_theme_v3_persists_actions_and_rejects_invalid_action_without_changing_config(self):
+        theme = json.loads(self.call("theme-get").stdout)["theme"]
+        theme["schema_version"] = 3
+        theme["actions"] = {"working": {"effect": "orbit", "speed": 2}}
+        self.call("theme-set", data=json.dumps(theme))
+        self.emit("turn_started")
+        self.assertEqual(self.status()["action"], {"effect": "orbit", "speed": 2})
+        saved = json.loads(self.call("theme-get").stdout)["theme"]
+        invalid = json.loads(json.dumps(saved))
+        invalid["actions"]["working"]["speed"] = 0
+        self.assertNotEqual(self.call("theme-set", data=json.dumps(invalid), check=False).returncode, 0)
+        self.assertEqual(json.loads(self.call("theme-get").stdout)["theme"], saved)
+        self.assertIn("verified", saved["signals"])
 
     def test_event_ipc_theme_preview_and_restore(self):
         self.emit("turn_started")
