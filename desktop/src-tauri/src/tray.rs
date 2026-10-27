@@ -17,14 +17,15 @@ fn rounded(x: f32, y: f32, left: f32, top: f32, width: f32, height: f32, radius:
 }
 
 fn menu_bar_icon() -> tauri::image::Image<'static> {
-    // tray-icon normalizes height to 18pt on macOS. A tight 26:18 canvas
-    // preserves a 25.5 × 16.5pt mark instead of shrinking a padded square.
+    // macOS normalizes the canvas to 18pt high. Keep the keyboard centered
+    // at about 22.4 × 14.5pt, slightly smaller than the original tight mark.
     const SCALE: u32 = 4;
-    let mut pixels = Vec::with_capacity((26 * 18 * SCALE * SCALE * 4) as usize);
+    const MARK_SCALE: f32 = 0.88;
+    let mut pixels = Vec::with_capacity((24 * 18 * SCALE * SCALE * 4) as usize);
     for row in 0..18 * SCALE {
-        for column in 0..26 * SCALE {
-            let x = (column as f32 + 0.5) / SCALE as f32;
-            let y = (row as f32 + 0.5) / SCALE as f32;
+        for column in 0..24 * SCALE {
+            let x = ((column as f32 + 0.5) / SCALE as f32 - 12.0) / MARK_SCALE + 13.0;
+            let y = ((row as f32 + 0.5) / SCALE as f32 - 9.0) / MARK_SCALE + 9.0;
             let outline = rounded(x, y, 0.25, 0.75, 25.5, 16.5, 2.2)
                 && !rounded(x, y, 1.4, 1.9, 23.2, 14.2, 1.05);
             let mut filled = outline;
@@ -48,7 +49,7 @@ fn menu_bar_icon() -> tauri::image::Image<'static> {
             pixels.extend_from_slice(&[255, 255, 255, if filled { 255 } else { 0 }]);
         }
     }
-    tauri::image::Image::new_owned(pixels, 26 * SCALE, 18 * SCALE)
+    tauri::image::Image::new_owned(pixels, 24 * SCALE, 18 * SCALE)
 }
 
 fn colored_icon() -> tauri::image::Image<'static> {
