@@ -52,7 +52,16 @@
     "app_icon_master": "assets/branding/keyflux-app-icon-v3.png",
     "generator": "built-in image_gen; original icon enlarged on transparent square; prompt in sibling prompt file",
     "native_keyflux_window": "Captured and inspected locally; no manual Apply/Restore/Follow controls or readback row",
-    "reference_art_screenshots_committed": false
+    "reference_art_screenshots_committed": false,
+    "native_usb_connected_ui": true,
+    "native_verified_controls": [
+      "USB connected",
+      "Default",
+      "Save",
+      "No manual Apply/Restore/Follow control",
+      "No device readback row",
+      "ChatGPT App source pending, not simulated activity"
+    ]
   },
   "limits": [
     "Work, Chat and Codex App status adapters remain unverified; no universal live monitoring claim.",
