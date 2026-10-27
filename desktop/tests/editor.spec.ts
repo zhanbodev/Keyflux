@@ -1,9 +1,12 @@
 import { test, expect } from '@playwright/test';
+import { installBridge } from './native-bridge';
 test('compact console, custom menus and independent channel colors', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto('/?fixture=1');
-  await expect(page.getByText('界面测试', { exact: true })).toBeVisible();
+  await installBridge(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: '连接键盘', exact: true }).click();
+  await expect(page.getByText('USB 已连接', { exact: true })).toBeVisible();
   await page.waitForFunction(() =>
     [...document.images].every((image) => image.complete && image.naturalWidth > 0),
   );
@@ -35,12 +38,8 @@ test('compact console, custom menus and independent channel colors', async ({ pa
   await expect(page.locator('.strip-aperture')).toHaveCount(0);
   await page.getByRole('button', { name: '键盘型号', exact: true }).click();
   await expect(page.getByRole('listbox', { name: '键盘型号' })).toBeVisible();
-  await page.getByRole('option', { name: 'Air75 V3 · 布局样例', exact: true }).click();
-  await expect(page.getByRole('img', { name: 'Air75 V3 灯光预览' })).toBeVisible();
-  await page.getByRole('button', { name: '键盘型号', exact: true }).click();
-  await page.getByRole('button', { name: '键盘型号', exact: true }).press('Home');
-  await page.getByRole('button', { name: '键盘型号', exact: true }).press('Enter');
-  await expect(page.getByRole('img', { name: 'Kick75 IO 灯光预览' })).toBeVisible();
+  await expect(page.getByRole('option')).toHaveCount(1);
+  await page.getByRole('button', { name: '键盘型号', exact: true }).press('Escape');
   await page.getByRole('button', { name: '主键区', exact: true }).click();
   await page.getByLabel('跟随状态').check();
   await expect(page.locator('.panel-heading h2')).toHaveText('Thinking');
@@ -49,19 +48,33 @@ test('compact console, custom menus and independent channel colors', async ({ pa
   expect(errors).toEqual([]);
 });
 test('explicit connection, apply and restore UI', async ({ page }) => {
-  await page.goto('/?fixture=1');
+  await installBridge(page);
+  await page.goto('/');
   await expect(page.getByRole('button', { name: '应用到键盘', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: '连接键盘', exact: true }).click();
   await expect(page.getByRole('button', { name: '断开', exact: true })).toBeEnabled();
+  await expect(page.getByLabel('设备回读')).toContainText('动态灯效');
+  await expect(page.getByRole('button', { name: '恢复灯效', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: '应用到键盘', exact: true }).click();
   await expect(page.locator('.feedback')).toHaveText('主灯已应用，回读确认');
+  await expect(page.getByLabel('设备回读')).toContainText('常亮');
+  await expect(page.getByLabel('设备回读')).toContainText('原灯效已保存');
+  // Editing a draft must not claim a different actual device readback.
+  await page.getByRole('button', { name: '预设颜色 3', exact: true }).click();
+  await expect(page.getByLabel('设备回读').locator('i')).toHaveCSS(
+    'background-color',
+    'rgb(59, 130, 246)',
+  );
   await page.getByRole('button', { name: '恢复灯效', exact: true }).click();
   await expect(page.locator('.feedback')).toHaveText('原灯效已恢复并回读确认');
+  await expect(page.getByLabel('设备回读')).toContainText('动态灯效');
   await page.getByRole('button', { name: '断开', exact: true }).click();
   await expect(page.getByRole('button', { name: '应用到键盘', exact: true })).toBeDisabled();
 });
 test('small supported windows keep every control on screen', async ({ page }) => {
-  await page.goto('/?fixture=1');
+  await installBridge(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: '连接键盘', exact: true }).click();
   for (const [width, height] of [
     [900, 650],
     [1120, 750],
@@ -81,13 +94,18 @@ test('small supported windows keep every control on screen', async ({ page }) =>
   }
 });
 test('plain browser cannot pretend to be connected', async ({ page }) => {
-  await page.goto('/');
-  await expect(page.locator('.feedback')).toContainText('请通过 Tauri 启动应用');
-  await expect(page.getByRole('button', { name: '连接键盘', exact: true })).toBeDisabled();
+  for (const url of ['/', '/?fixture=1']) {
+    await page.goto(url);
+    await expect(page.locator('.feedback')).toContainText('请通过 Tauri 启动应用');
+    await expect(page.getByRole('button', { name: '连接键盘', exact: true })).toBeDisabled();
+    await expect(page.locator('.console')).toHaveCount(0);
+  }
 });
 test('invalid drafts remain rejected across polling', async ({ page }) => {
   await page.clock.install();
-  await page.goto('/?fixture=1');
+  await installBridge(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: '连接键盘', exact: true }).click();
   await page.getByLabel('完成色保持秒数').fill('0');
   await page.getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.locator('.feedback')).toContainText('配色名称、保持时间或颜色无效');
@@ -96,7 +114,9 @@ test('invalid drafts remain rejected across polling', async ({ page }) => {
 });
 
 test('extension menu keyboard navigation and precise brightness dragging', async ({ page }) => {
-  await page.goto('/?fixture=1');
+  await installBridge(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: '连接键盘', exact: true }).click();
   const more = page.getByRole('button', { name: '更多操作', exact: true });
   await expect(more).toBeEnabled();
   await more.focus();
@@ -134,4 +154,61 @@ test('extension menu keyboard navigation and precise brightness dragging', async
   await expect(slider).toHaveValue('99');
   await slider.blur();
   await expect(page.locator('.brightness-tooltip')).toHaveCount(0);
+});
+
+test('startup requires explicit USB connection and failed attempts stay locked', async ({
+  page,
+}) => {
+  await page.clock.install();
+  await installBridge(page, true);
+  await page.goto('/?fixture=1');
+  await expect(page.getByRole('button', { name: '连接 USB 键盘', exact: true })).toBeEnabled();
+  await expect(page.locator('.console')).toHaveCount(0);
+  await expect(page.locator('.keyboard')).toHaveCSS('--light-color', '#55575a');
+  for (const label of ['键盘型号', '更多操作', '应用到键盘', '保存', '默认', '撤销', '恢复灯效']) {
+    await expect(page.getByRole('button', { name: label, exact: true })).toBeDisabled();
+  }
+  await expect(page.getByLabel('跟随状态')).toBeDisabled();
+  await expect(page.getByLabel('完成色保持秒数')).toBeDisabled();
+  await page.clock.fastForward(15000);
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { __testBridge: { calls: string[] } }).__testBridge.calls,
+    ),
+  ).not.toContain('connect_device');
+  await page.getByRole('button', { name: '连接 USB 键盘', exact: true }).click();
+  await expect(page.locator('.feedback')).toContainText('未找到 Kick75');
+  await expect(page.locator('.console')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '更多操作', exact: true })).toBeDisabled();
+});
+
+test('unplug locks controls and requires a new user connection', async ({ page }) => {
+  await page.clock.install();
+  await installBridge(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: '连接键盘', exact: true }).click();
+  await page.getByLabel('红色通道').fill('255');
+  await page.getByRole('button', { name: '更多操作', exact: true }).click();
+  await expect(page.getByRole('menu')).toBeVisible();
+  await page.evaluate(() =>
+    (window as unknown as { __testBridge: { unplug: () => void } }).__testBridge.unplug(),
+  );
+  await page.clock.fastForward(5000);
+  await expect(page.locator('.console')).toHaveCount(0);
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '保存', exact: true })).toBeDisabled();
+  await expect(page.locator('.keyboard')).toHaveCSS('--light-color', '#55575a');
+  await page.clock.fastForward(15000);
+  expect(
+    (
+      await page.evaluate(
+        () => (window as unknown as { __testBridge: { calls: string[] } }).__testBridge.calls,
+      )
+    ).filter((name) => name === 'connect_device'),
+  ).toHaveLength(1);
+  await page.screenshot({ path: 'test-results/connection-required.png' });
+  await page.getByRole('button', { name: '连接 USB 键盘', exact: true }).click();
+  await expect(page.getByLabel('红色通道')).toHaveValue('255');
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '保存', exact: true })).toBeEnabled();
 });

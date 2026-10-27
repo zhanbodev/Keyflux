@@ -49,9 +49,15 @@ async fn get_theme(core: State<'_, Shared>) -> Reply {
     .await
 }
 #[tauri::command]
-async fn save_theme(core: State<'_, Shared>, theme: Value) -> Reply {
+async fn save_theme(
+    core: State<'_, Shared>,
+    device: State<'_, SharedDevice>,
+    theme: Value,
+) -> Reply {
     let core = core.inner().clone();
+    let device = device.inner().clone();
     blocking(move || {
+        device.require_connected()?;
         core.ensure()?;
         core.call("validate-theme", Some(&theme))?;
         core.call("theme-set", Some(&theme))
@@ -62,7 +68,7 @@ async fn save_theme(core: State<'_, Shared>, theme: Value) -> Reply {
 async fn get_device(core: State<'_, Shared>, device: State<'_, SharedDevice>) -> Reply {
     let core = core.inner().clone();
     let device = device.inner().clone();
-    blocking(move || device.status(&core)).await
+    blocking(move || device.status(core.as_ref())).await
 }
 #[tauri::command]
 async fn connect_device(core: State<'_, Shared>, device: State<'_, SharedDevice>) -> Reply {
@@ -78,13 +84,13 @@ async fn connect_device(core: State<'_, Shared>, device: State<'_, SharedDevice>
 async fn disconnect_device(core: State<'_, Shared>, device: State<'_, SharedDevice>) -> Reply {
     let core = core.inner().clone();
     let device = device.inner().clone();
-    blocking(move || device.disconnect(&core)).await
+    blocking(move || device.disconnect(core.as_ref())).await
 }
 #[tauri::command]
 async fn restore_device(core: State<'_, Shared>, device: State<'_, SharedDevice>) -> Reply {
     let core = core.inner().clone();
     let device = device.inner().clone();
-    blocking(move || device.restore(&core)).await
+    blocking(move || device.restore(core.as_ref())).await
 }
 #[tauri::command]
 async fn apply_main(
@@ -95,15 +101,18 @@ async fn apply_main(
 ) -> Reply {
     let core = core.inner().clone();
     let device = device.inner().clone();
-    blocking(move || device.apply(&core, &model, &signal)).await
+    blocking(move || device.apply(core.as_ref(), &model, &signal)).await
 }
 #[tauri::command]
 async fn import_theme(
     app: tauri::AppHandle,
     core: State<'_, Shared>,
+    device: State<'_, SharedDevice>,
 ) -> Result<Option<Value>, String> {
     let core = core.inner().clone();
+    let device = device.inner().clone();
     blocking(move || {
+        device.require_connected()?;
         let Some(file) = app
             .dialog()
             .file()
@@ -132,10 +141,13 @@ async fn import_theme(
 async fn export_theme(
     app: tauri::AppHandle,
     core: State<'_, Shared>,
+    device: State<'_, SharedDevice>,
     theme: Value,
 ) -> Result<bool, String> {
     let core = core.inner().clone();
+    let device = device.inner().clone();
     blocking(move || {
+        device.require_connected()?;
         core.call("validate-theme", Some(&theme))?;
         let Some(file) = app
             .dialog()
@@ -221,7 +233,7 @@ fn main() {
                 code: None, api, ..
             } => api.prevent_exit(),
             tauri::RunEvent::Exit => {
-                let _ = exit_keyboard.shutdown(&exit_core);
+                let _ = exit_keyboard.shutdown(exit_core.as_ref());
                 exit_core.stop_owned();
             }
             _ => {}

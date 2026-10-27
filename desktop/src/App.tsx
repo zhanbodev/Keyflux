@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { command, fixture, loadTheme, type Device, type Status } from './bridge';
+import { useEffect, useRef, useState } from 'react';
+import { command, loadTheme, type Device, type Status } from './bridge';
 import { KeyboardPreview, layouts } from './KeyboardPreview';
 import { ColorPicker } from './ColorPicker';
 import { Select } from './Select';
@@ -31,11 +31,23 @@ const errorText = (error: unknown) => {
         UnverifiedDevice: '当前系统、固件或档位尚未通过灯控验证',
         SimulationNotAllowed: '当前为模拟实例，请使用普通启动命令',
         ReadbackMismatch: '灯光回读不一致，请恢复灯效',
+        DeviceBusy: '设备忙碌，等待重新读取',
+        DeviceDisconnected: '键盘已断开，等待原设备重新接入',
+        HidTimeout: '键盘响应超时，请检查 USB 或其他灯控程序',
+        MultipleDevices: '检测到多把 Kick75，请只保留一把 USB 连接',
+        RecoveryIdentityMismatch: '恢复记录属于其他设备，请接回原键盘与原 USB 端口',
+        InvalidRecoveryRecord: '恢复记录损坏，已阻止写入，请保留记录进行诊断',
+        UnsupportedOriginalEffect: '当前原灯效尚不支持可靠恢复，请先在键盘上切换灯效',
+        RestoreColorUnrepresentable: '当前原灯效颜色无法精确恢复，已阻止写入',
+        UnverifiedFirmwareOrGeometry: '当前固件尚未通过灯控验证',
+        UnverifiedProfile: '请将键盘切换至 Mac 档后重新连接',
       } as Record<string, string>
     )[code] ?? code
   );
 };
 export function App() {
+  const action = useRef(false),
+    deviceRevision = useRef(0);
   const [theme, setTheme] = useState<Theme>(defaultTheme),
     [saved, setSaved] = useState<Theme>(defaultTheme);
   const [status, setStatus] = useState<Status | null>(null),
@@ -56,26 +68,34 @@ export function App() {
     let timer: ReturnType<typeof setTimeout>;
     const check = (next: Status) => {
       if (!next.result.theme_schema_versions?.includes(2)) throw new Error('核心不支持 Theme v2');
-      if (!fixture && next.result.backend === 'simulated') throw new Error('SimulationNotAllowed');
+      if (next.result.backend === 'simulated') throw new Error('SimulationNotAllowed');
     };
     const refresh = async () => {
-      if (document.visibilityState !== 'hidden')
+      if (document.visibilityState !== 'hidden') {
         try {
           const next = await command<Status>('get_status');
           if (disposed) return;
           check(next);
           setStatus(next);
           setConnectionError('');
-          if (++polls % 3 === 0) {
-            const nextDevice = await command<Device>('get_device');
-            if (!disposed) setDevice(nextDevice);
-          }
         } catch (e) {
           if (!disposed) {
             setStatus(null);
             setConnectionError(errorText(e));
           }
         }
+        // USB state remains observable even when the separate event core is down.
+        if (++polls % 3 === 0 && !action.current) {
+          const revision = deviceRevision.current;
+          try {
+            const nextDevice = await command<Device>('get_device');
+            if (!disposed && revision === deviceRevision.current) setDevice(nextDevice);
+          } catch (e) {
+            if (!disposed && revision === deviceRevision.current)
+              setDevice({ ...disconnected, last_error: String(e) });
+          }
+        }
+      }
       if (!disposed) timer = setTimeout(refresh, 1500);
     };
     const init = async () => {
@@ -91,19 +111,9 @@ export function App() {
         setTheme(loaded);
         setSaved(structuredClone(loaded));
         setDevice(connected);
-        setReady(true);
         setConnectionError('');
-        if (!fixture && !connected.connected) {
-          try {
-            const usb = await command<Device>('connect_device');
-            if (disposed) return;
-            setDevice(usb);
-            if (usb.model_id) setModel(usb.model_id);
-          } catch {
-            // No hardware is a normal startup state. The connection button
-            // retries explicitly; it never substitutes a simulated keyboard.
-          }
-        }
+        if (disposed) return;
+        setReady(true);
         timer = setTimeout(refresh, 1500);
       } catch (e) {
         if (!disposed) {
@@ -150,6 +160,9 @@ export function App() {
     });
   };
   const run = async (task: () => Promise<void>) => {
+    if (action.current) return;
+    action.current = true;
+    ++deviceRevision.current;
     setBusy(true);
     setError('');
     setNotice('');
@@ -157,7 +170,14 @@ export function App() {
       await task();
     } catch (e) {
       setError(errorText(e));
+      try {
+        setDevice(await command<Device>('get_device'));
+      } catch {
+        /* Keep the original error. */
+      }
     } finally {
+      ++deviceRevision.current;
+      action.current = false;
       setBusy(false);
     }
   };
@@ -176,12 +196,17 @@ export function App() {
     });
   const locked = zone === 'side' && (!theme.side.enabled || theme.side.mode === 'follow_main');
   const canApply =
-    device.connected && device.writable && device.model_id === model && zone === 'main';
+    device.connected &&
+    device.writable &&
+    !device.recovery_required &&
+    device.model_id === model &&
+    zone === 'main';
   return (
     <main className="app-shell">
       <header className="toolbar">
         <Select
           label="键盘型号"
+          disabled={!device.connected || busy}
           value={model}
           onChange={setModel}
           options={layouts.map((l) => ({
@@ -191,7 +216,12 @@ export function App() {
         />
         <div className="toolbar-right">
           <label className="toggle">
-            <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} />
+            <input
+              type="checkbox"
+              disabled={!device.connected || busy}
+              checked={follow}
+              onChange={(e) => setFollow(e.target.checked)}
+            />
             跟随状态
           </label>
           <span
@@ -199,19 +229,13 @@ export function App() {
             title={device.firmware ? `固件 ${device.firmware} · ${device.profile} 档` : undefined}
           >
             <i />
-            {fixture
-              ? '界面测试'
-              : device.connected
-                ? device.writable
-                  ? 'USB 已连接'
-                  : 'USB 只读'
-                : '未连接'}
+            {device.connected ? (device.writable ? 'USB 已连接' : 'USB 只读') : '未连接'}
           </span>
           <button className="connect-button" disabled={busy || !ready} onClick={connect}>
             {device.connected ? '断开' : '连接键盘'}
           </button>
           <MoreMenu
-            disabled={!ready || busy}
+            disabled={!ready || !device.connected || busy}
             actions={[
               {
                 id: 'import-theme',
@@ -239,132 +263,175 @@ export function App() {
         </div>
       </header>
       <section className="keyboard-stage" aria-label="键盘预览区">
-        <KeyboardPreview
-          model={model}
-          main={displayed ? theme.signals[displayed] : null}
-          strip={displayed ? sideSignal(theme, displayed) : null}
-        />
-      </section>
-      <section className="console">
-        <nav className="zone-nav" aria-label="灯区">
-          <button className={zone === 'main' ? 'active' : ''} onClick={() => setZone('main')}>
-            <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="2" y="5" width="20" height="14" rx="2" />
-              <path d="M6 9h1m4 0h1m4 0h1M6 13h1m4 0h1m4 0h1M8 16h8" />
-            </svg>
-            主键区
-          </button>
-          <button className={zone === 'side' ? 'active' : ''} onClick={() => setZone('side')}>
-            <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="3" y="8" width="18" height="8" rx="2" />
-              <path d="M7 11v2m5-2v2m5-2v2" />
-            </svg>
-            条形灯
-          </button>
-        </nav>
-        <div className="states" aria-label="状态配色">
-          {phases.map((p) => {
-            const swatch =
-              zone === 'main' || theme.side.mode === 'follow_main'
-                ? theme.signals[p]
-                : theme.side.signals[p];
-            return (
-              <button
-                key={p}
-                className={editPhase === p ? 'selected' : ''}
-                aria-pressed={editPhase === p}
-                onClick={() => {
-                  setFollow(false);
-                  setPhase(p);
-                }}
-              >
-                <i style={{ backgroundColor: swatch.color }} />
-                <span>{labels[p]}</span>
-                {follow && p === live && <span className="live-dot" aria-label="当前状态" />}
-              </button>
-            );
-          })}
-        </div>
-        <div className="color-panel">
-          <div className="panel-heading">
-            <h2>{labels[editPhase]}</h2>
-            {zone === 'side' ? (
-              <div className="strip-controls">
-                <label className="toggle">
-                  <input
-                    type="checkbox"
-                    checked={theme.side.enabled}
-                    onChange={(e) =>
-                      setTheme({ ...theme, side: { ...theme.side, enabled: e.target.checked } })
-                    }
-                  />
-                  启用条形灯
-                </label>
-                <Select
-                  label="条形灯配色模式"
-                  value={theme.side.mode}
-                  onChange={(mode) =>
-                    setTheme({
-                      ...theme,
-                      side: { ...theme.side, mode: mode as Theme['side']['mode'] },
-                    })
-                  }
-                  options={[
-                    { value: 'follow_main', label: '跟随主键区' },
-                    { value: 'independent', label: '独立配色' },
-                  ]}
-                />
-              </div>
-            ) : (
-              <span className="phase-caption">
-                {follow
-                  ? displayed
-                    ? '当前状态'
-                    : live === 'idle'
-                      ? '当前空闲'
-                      : '状态不可用'
-                  : '配色预览'}
-              </span>
-            )}
-          </div>
-          <ColorPicker
-            value={signal.color}
-            disabled={!ready || busy || locked}
-            onBegin={beginEdit}
-            onChange={(color) => update({ color })}
+        <div className="keyboard-canvas">
+          <KeyboardPreview
+            model={model}
+            main={device.connected && displayed ? theme.signals[displayed] : null}
+            strip={device.connected && displayed ? sideSignal(theme, displayed) : null}
           />
-          <div className="channel-row">
-            <Brightness
-              value={signal.brightness}
+        </div>
+        <div className="device-readback" aria-label="设备回读" role="status">
+          {device.connected && device.main ? (
+            <>
+              <span>设备回读</span>
+              {device.main.color && <i style={{ backgroundColor: device.main.color }} />}
+              <strong>
+                {device.main.mode === 'solid'
+                  ? '常亮'
+                  : device.main.mode === 'custom'
+                    ? '自定义灯效'
+                    : '动态灯效'}
+              </strong>
+              <span>{device.main.brightness}%</span>
+              {device.recovery_pending && (
+                <span className="recovery-hint">
+                  {device.recovery_required ? '请先恢复灯效' : '原灯效已保存'}
+                </span>
+              )}
+            </>
+          ) : (
+            <span>{'未连接 USB'}</span>
+          )}
+        </div>
+      </section>
+      {!device.connected ? (
+        <section className="connection-gate" aria-label="连接键盘后解锁控制">
+          <svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v13m-3-10 3-3 3 3M12 12l5-3V6M12 15l-5-3V9" />
+            <circle cx="12" cy="19" r="2" />
+            <circle cx="7" cy="8" r="1" />
+            <path d="M16 4h2v2h-2z" />
+          </svg>
+          <h2>连接你的键盘</h2>
+          <p>将 Kick75 接入 USB 并切至 Mac 档，然后点击连接。</p>
+          <button className="primary" disabled={!ready || busy} onClick={connect}>
+            {busy ? '正在连接…' : '连接 USB 键盘'}
+          </button>
+        </section>
+      ) : (
+        <section className="console">
+          <nav className="zone-nav" aria-label="灯区">
+            <button className={zone === 'main' ? 'active' : ''} onClick={() => setZone('main')}>
+              <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="2" y="5" width="20" height="14" rx="2" />
+                <path d="M6 9h1m4 0h1m4 0h1M6 13h1m4 0h1m4 0h1M8 16h8" />
+              </svg>
+              主键区
+            </button>
+            <button className={zone === 'side' ? 'active' : ''} onClick={() => setZone('side')}>
+              <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3" y="8" width="18" height="8" rx="2" />
+                <path d="M7 11v2m5-2v2m5-2v2" />
+              </svg>
+              条形灯
+            </button>
+          </nav>
+          <div className="states" aria-label="状态配色">
+            {phases.map((p) => {
+              const swatch =
+                zone === 'main' || theme.side.mode === 'follow_main'
+                  ? theme.signals[p]
+                  : theme.side.signals[p];
+              return (
+                <button
+                  key={p}
+                  className={editPhase === p ? 'selected' : ''}
+                  aria-pressed={editPhase === p}
+                  onClick={() => {
+                    setFollow(false);
+                    setPhase(p);
+                  }}
+                >
+                  <i style={{ backgroundColor: swatch.color }} />
+                  <span>{labels[p]}</span>
+                  {follow && p === live && <span className="live-dot" aria-label="当前状态" />}
+                </button>
+              );
+            })}
+          </div>
+          <div className="color-panel">
+            <div className="panel-heading">
+              <h2>{labels[editPhase]}</h2>
+              {zone === 'side' ? (
+                <div className="strip-controls">
+                  <label className="toggle">
+                    <input
+                      type="checkbox"
+                      checked={theme.side.enabled}
+                      onChange={(e) =>
+                        setTheme({ ...theme, side: { ...theme.side, enabled: e.target.checked } })
+                      }
+                    />
+                    启用条形灯
+                  </label>
+                  <Select
+                    label="条形灯配色模式"
+                    value={theme.side.mode}
+                    onChange={(mode) =>
+                      setTheme({
+                        ...theme,
+                        side: { ...theme.side, mode: mode as Theme['side']['mode'] },
+                      })
+                    }
+                    options={[
+                      { value: 'follow_main', label: '跟随主键区' },
+                      { value: 'independent', label: '独立配色' },
+                    ]}
+                  />
+                </div>
+              ) : (
+                <span className="phase-caption">
+                  {follow
+                    ? displayed
+                      ? '当前状态'
+                      : live === 'idle'
+                        ? '当前空闲'
+                        : '状态不可用'
+                    : '配色预览'}
+                </span>
+              )}
+            </div>
+            <ColorPicker
+              value={signal.color}
               disabled={!ready || busy || locked}
               onBegin={beginEdit}
-              onChange={(brightness) => update({ brightness })}
+              onChange={(color) => update({ color })}
             />
-            {zone === 'side' && (
-              <span className="strip-hint">
-                {locked
-                  ? theme.side.enabled
-                    ? '跟随主键区颜色'
-                    : '启用后预览条形灯'
-                  : '条形灯暂不写入设备'}
-              </span>
-            )}
+            <div className="channel-row">
+              <Brightness
+                value={signal.brightness}
+                disabled={!ready || busy || locked}
+                onBegin={beginEdit}
+                onChange={(brightness) => update({ brightness })}
+              />
+              {zone === 'side' && (
+                <span className="strip-hint">
+                  {locked
+                    ? theme.side.enabled
+                      ? '跟随主键区颜色'
+                      : '启用后预览条形灯'
+                    : '条形灯暂不写入设备'}
+                </span>
+              )}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
       <footer className="save-bar">
         <div className="feedback" role="status">
-          {error || connectionError ? (
-            <span className="error">{error || connectionError}</span>
+          {error || connectionError || device.last_error ? (
+            <span className="error">
+              {error || connectionError || errorText(device.last_error)}
+            </span>
           ) : (
-            notice ||
+            (device.recovery_required ? '检测到上次的灯效记录，请先恢复原灯效' : notice) ||
             (dirty
               ? '未保存'
               : device.connected
                 ? device.firmware
                   ? `Kick75 IO · ${device.firmware}`
                   : '已连接'
-                : '选择配色，连接键盘后应用')
+                : '请先连接真实 USB 键盘')
           )}
         </div>
         <label className="hold">
@@ -372,6 +439,7 @@ export function App() {
           <input
             type="number"
             aria-label="完成色保持秒数"
+            disabled={!device.connected || busy}
             min="1"
             max="60"
             value={theme.completion_hold_ms / 1000}
@@ -386,11 +454,14 @@ export function App() {
           秒
         </label>
         <div className="actions">
-          <button disabled={!ready || busy} onClick={() => setTheme(defaultTheme())}>
+          <button
+            disabled={!ready || !device.connected || busy}
+            onClick={() => setTheme(defaultTheme())}
+          >
             默认
           </button>
           <button
-            disabled={!dirty || busy}
+            disabled={!device.connected || !dirty || busy}
             onClick={() => {
               setTheme(structuredClone(saved));
               setError('');
@@ -399,7 +470,7 @@ export function App() {
             撤销
           </button>
           <button
-            disabled={!device.connected || !device.writable || busy}
+            disabled={!device.can_restore || busy}
             onClick={() =>
               void run(async () => {
                 const restored = await command<Device>('restore_device');
@@ -427,7 +498,7 @@ export function App() {
           </button>
           <button
             className="primary"
-            disabled={!ready || !dirty || busy}
+            disabled={!ready || !device.connected || !dirty || busy}
             onClick={() =>
               void run(async () => {
                 const validated = parseTheme(theme);

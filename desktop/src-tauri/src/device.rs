@@ -1,90 +1,235 @@
 use crate::core::Core;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Mutex;
 
+// A narrow transport seam allows lifecycle tests without sending HID reports.
+pub trait Hardware {
+    fn inspect(&self) -> Result<Value, String>;
+    fn apply(&self, signal: &Value, identity: &str) -> Result<Value, String>;
+    fn restore(&self, identity: &str) -> Result<Value, String>;
+}
+impl Hardware for Core {
+    fn inspect(&self) -> Result<Value, String> {
+        self.inspect_device()
+    }
+    fn apply(&self, signal: &Value, identity: &str) -> Result<Value, String> {
+        self.apply_device(signal, identity)
+    }
+    fn restore(&self, identity: &str) -> Result<Value, String> {
+        self.restore_device(identity)
+    }
+}
+#[derive(Default, Deserialize, Serialize)]
+struct Recovery {
+    required: bool,
+    pending: bool,
+    compatible: bool,
+    code: Option<String>,
+}
+#[derive(Deserialize)]
+struct Snapshot {
+    probe: Option<Value>,
+    recovery: Recovery,
+    device_error: Option<String>,
+}
 #[derive(Default)]
 struct Session {
     probe: Option<Value>,
+    recovery: Recovery,
     restore_owned: bool,
     identity: Option<String>,
     closing: bool,
+    last_error: Option<String>,
 }
 #[derive(Default)]
 pub struct Device {
     session: Mutex<Session>,
 }
+fn bytes(value: &Value, count: usize) -> bool {
+    value.as_array().is_some_and(|items| {
+        items.len() == count && items.iter().all(|v| v.as_u64().is_some_and(|n| n <= 255))
+    })
+}
+fn valid_probe(probe: &Value) -> bool {
+    probe["schema_version"] == 1
+        && probe["model_id"] == "nuphy-kick75-io"
+        && probe["fingerprint"]
+            .as_str()
+            .is_some_and(|id| id.len() == 64 && id.bytes().all(|b| b.is_ascii_hexdigit()))
+        && bytes(&probe["state"], 17)
+        && probe["state"][1].as_u64().is_some_and(|v| v <= 100)
+        && bytes(&probe["firmware"], 8)
+        && bytes(&probe["geometry"], 8)
+        && matches!(probe["profile"].as_u64(), Some(0 | 1))
+}
 fn writable(probe: &Value) -> bool {
     cfg!(target_os = "macos")
-        && probe["schema_version"] == 1
-        && probe["model_id"] == "nuphy-kick75-io"
+        && valid_probe(probe)
         && probe["profile"] == 0
         && probe["led_count"] == 85
         && probe["input_bytes"] == 64
         && probe["output_bytes"] == 64
         && probe["firmware"].as_array().is_some_and(|v| {
-            v.len() == 8
-                && v[..6]
-                    == [
-                        json!(18),
-                        json!(0),
-                        json!(4),
-                        json!(170),
-                        json!(6),
-                        json!(0),
-                    ]
+            v[..6]
+                == [
+                    json!(18),
+                    json!(0),
+                    json!(4),
+                    json!(170),
+                    json!(6),
+                    json!(0),
+                ]
         })
-        && probe["geometry"].as_array().is_some_and(|v| {
-            v.len() == 8 && v[..5] == [json!(0), json!(8), json!(4), json!(6), json!(15)]
-        })
+        && probe["geometry"]
+            .as_array()
+            .is_some_and(|v| v[..5] == [json!(0), json!(8), json!(4), json!(6), json!(15)])
 }
-fn public(probe: Option<&Value>, recovery: bool) -> Value {
-    let Some(probe) = probe else {
-        return json!({"connected":false,"writable":false,"recovery_pending":recovery});
-    };
-    let f = &probe["firmware"];
-    json!({"connected":true,"model_id":probe["model_id"],"firmware":format!("{}.{}.{}.{}",f[2],f[1],f[0],f[4].as_u64().unwrap_or(0) | (f[5].as_u64().unwrap_or(0) << 8)),"profile":if probe["profile"]==0 {"Mac"} else {"Win"},"writable":writable(probe),"recovery_pending":recovery,"state":probe["state"]})
+fn readback(probe: &Value) -> Value {
+    let state = &probe["state"];
+    let solid = state[0] == 3 && state[4] == 0;
+    json!({
+        "mode": if solid {"solid"} else if state[0] == 0 {"custom"} else {"effect"},
+        "mode_id": state[0], "brightness": state[1],
+        "color": if solid {Some(format!("#{:02X}{:02X}{:02X}", state[6].as_u64().unwrap(), state[7].as_u64().unwrap(), state[8].as_u64().unwrap()))} else {None}
+    })
 }
-impl Device {
-    pub fn connect(&self, core: &Core) -> Result<Value, String> {
-        let mut session = self.session.lock().map_err(|_| "DeviceLockFailed")?;
-        if session.closing {
-            return Err("AppClosing".into());
-        }
-        if core.simulated {
-            return Err("SimulationNotAllowed".into());
-        }
-        let probe = core.probe_device()?;
-        if let Some(old) = &session.probe {
-            if old["fingerprint"] != probe["fingerprint"] {
-                return Err("DeviceChanged".into());
-            }
-        }
-        let identity = probe["fingerprint"].as_str().ok_or("InvalidDeviceReply")?;
-        if identity.len() != 64 || probe["model_id"] != "nuphy-kick75-io" {
+fn public(session: &Session) -> Value {
+    let recovery = &session.recovery;
+    let mut result = json!({
+        "connected": session.probe.is_some(), "writable": false,
+        "reconnecting": false,
+        "recovery_pending": recovery.required,
+        "recovery_required": recovery.required && (recovery.pending || !recovery.compatible || !session.restore_owned),
+        "can_restore": false,
+        "last_error": session.last_error.as_ref().or(recovery.code.as_ref()),
+    });
+    if let Some(probe) = &session.probe {
+        let f = &probe["firmware"];
+        result["writable"] = json!(writable(probe));
+        result["can_restore"] = json!(writable(probe) && recovery.required && recovery.compatible);
+        result["model_id"] = probe["model_id"].clone();
+        result["firmware"] = json!(format!(
+            "{}.{}.{}.{}",
+            f[2],
+            f[1],
+            f[0],
+            f[4].as_u64().unwrap() | (f[5].as_u64().unwrap() << 8)
+        ));
+        result["profile"] = json!(if probe["profile"] == 0 { "Mac" } else { "Win" });
+        result["state"] = probe["state"].clone();
+        result["main"] = readback(probe);
+    }
+    result
+}
+fn refresh(session: &mut Session, hardware: &impl Hardware) -> Result<(), String> {
+    // Mark an old reading unavailable before IO: no stale success on an error.
+    session.probe = None;
+    let result = (|| {
+        let snapshot: Snapshot =
+            serde_json::from_value(hardware.inspect()?).map_err(|_| "InvalidDeviceReply")?;
+        session.recovery = snapshot.recovery;
+        let probe = snapshot.probe.ok_or_else(|| {
+            snapshot
+                .device_error
+                .unwrap_or_else(|| "DeviceNotFound".into())
+        })?;
+        if !valid_probe(&probe) {
             return Err("InvalidDeviceReply".into());
         }
-        if session.restore_owned && session.identity.as_deref() != Some(identity) {
+        let identity = probe["fingerprint"].as_str().ok_or("InvalidDeviceReply")?;
+        if session
+            .identity
+            .as_deref()
+            .is_some_and(|old| old != identity)
+        {
             return Err("DeviceChanged".into());
         }
         session.identity = Some(identity.to_owned());
         session.probe = Some(probe);
-        Ok(public(session.probe.as_ref(), session.restore_owned))
+        Ok(())
+    })();
+    session.last_error = result.as_ref().err().cloned();
+    result
+}
+fn restore_locked(session: &mut Session, hardware: &impl Hardware) -> Result<Value, String> {
+    let probe = session.probe.as_ref().ok_or("NotConnected")?;
+    if !writable(probe) {
+        return Err("UnverifiedDevice".into());
     }
-    pub fn status(&self, core: &Core) -> Result<Value, String> {
-        let mut session = self.session.lock().map_err(|_| "DeviceLockFailed")?;
-        if let Some(old) = &session.probe {
-            match core.probe_device() {
-                Ok(probe) if old["fingerprint"] == probe["fingerprint"] => {
-                    session.probe = Some(probe)
-                }
-                _ => {
-                    session.probe = None;
-                }
-            }
+    if session.recovery.required && !session.recovery.compatible {
+        return Err(session
+            .recovery
+            .code
+            .clone()
+            .unwrap_or_else(|| "RecoveryIdentityMismatch".into()));
+    }
+    let identity = session.identity.as_deref().ok_or("InvalidDeviceIdentity")?;
+    let result = match hardware.restore(identity) {
+        Ok(result) => result,
+        Err(error) => {
+            let _ = refresh(session, hardware);
+            return Err(error);
         }
-        Ok(public(session.probe.as_ref(), session.restore_owned))
+    };
+    if let Some(state) = result.get("state") {
+        if !bytes(state, 17) {
+            return Err("InvalidDeviceReply".into());
+        }
+        session.probe.as_mut().ok_or("NotConnected")?["state"] = state.clone();
     }
-    pub fn apply(&self, core: &Core, model: &str, signal: &Value) -> Result<Value, String> {
+    session.recovery = Recovery::default();
+    session.restore_owned = false;
+    session.last_error = None;
+    let mut reply = public(session);
+    reply["restored"] = result["restored"].clone();
+    Ok(reply)
+}
+impl Device {
+    pub fn require_connected(&self) -> Result<(), String> {
+        let session = self.session.lock().map_err(|_| "DeviceLockFailed")?;
+        if session.closing {
+            return Err("AppClosing".into());
+        }
+        if session.probe.is_none() {
+            return Err("NotConnected".into());
+        }
+        Ok(())
+    }
+    pub fn connect(&self, core: &Core) -> Result<Value, String> {
+        if core.simulated {
+            return Err("SimulationNotAllowed".into());
+        }
+        self.connect_hardware(core)
+    }
+    fn connect_hardware(&self, hardware: &impl Hardware) -> Result<Value, String> {
+        let mut session = self.session.lock().map_err(|_| "DeviceLockFailed")?;
+        if session.closing {
+            return Err("AppClosing".into());
+        }
+        // A new identity can only be selected by this explicit user action,
+        // and only when this App owns no capture that must first be restored.
+        if session.probe.is_none() && !session.restore_owned && !session.recovery.required {
+            session.identity = None;
+        }
+        refresh(&mut session, hardware)?;
+        Ok(public(&session))
+    }
+    pub fn status(&self, hardware: &impl Hardware) -> Result<Value, String> {
+        let mut session = self.session.lock().map_err(|_| "DeviceLockFailed")?;
+        if session.probe.is_some() && !session.closing {
+            // Observe a user-connected session only. A lost connection stays
+            // locked until an explicit Connect; polling never reopens it.
+            let _ = refresh(&mut session, hardware);
+        }
+        Ok(public(&session))
+    }
+    pub fn apply(
+        &self,
+        hardware: &impl Hardware,
+        model: &str,
+        signal: &Value,
+    ) -> Result<Value, String> {
         let mut session = self.session.lock().map_err(|_| "DeviceLockFailed")?;
         if session.closing {
             return Err("AppClosing".into());
@@ -96,54 +241,60 @@ impl Device {
         if probe["model_id"].as_str() != Some(model) {
             return Err("DeviceChanged".into());
         }
-        let identity = probe["fingerprint"]
-            .as_str()
-            .ok_or("InvalidDeviceIdentity")?;
-        let result = core.apply_device(signal, identity)?;
+        // A capture from another App lifetime must be restored explicitly.
+        if session.recovery.required
+            && (session.recovery.pending || !session.recovery.compatible || !session.restore_owned)
+        {
+            return Err("RecoveryRequired".into());
+        }
+        let identity = session.identity.as_deref().ok_or("InvalidDeviceIdentity")?;
+        let result = match hardware.apply(signal, identity) {
+            Ok(result) => result,
+            Err(error) => {
+                let _ = refresh(&mut session, hardware);
+                return Err(error);
+            }
+        };
+        if !bytes(&result["state"], 17) {
+            return Err("InvalidDeviceReply".into());
+        }
         if result["changed"] == true {
             session.restore_owned = true;
+            session.recovery = Recovery {
+                required: true,
+                compatible: true,
+                ..Recovery::default()
+            };
         }
-        let mut next = session.probe.take().ok_or("NotConnected")?;
-        next["state"] = result["state"].clone();
-        session.probe = Some(next);
-        Ok(public(session.probe.as_ref(), session.restore_owned))
+        session.probe.as_mut().ok_or("NotConnected")?["state"] = result["state"].clone();
+        session.last_error = None;
+        Ok(public(&session))
     }
-    pub fn restore(&self, core: &Core) -> Result<Value, String> {
+    pub fn restore(&self, hardware: &impl Hardware) -> Result<Value, String> {
         let mut session = self.session.lock().map_err(|_| "DeviceLockFailed")?;
-        if !writable(session.probe.as_ref().ok_or("NotConnected")?) {
-            return Err("UnverifiedDevice".into());
+        if session.closing {
+            return Err("AppClosing".into());
         }
-        let identity = session.probe.as_ref().ok_or("NotConnected")?["fingerprint"]
-            .as_str()
-            .ok_or("InvalidDeviceIdentity")?
-            .to_owned();
-        let result = core.restore_device(&identity)?;
-        if let Some(probe) = session.probe.as_mut() {
-            if result.get("state").is_some() {
-                probe["state"] = result["state"].clone();
-            }
+        restore_locked(&mut session, hardware)
+    }
+    pub fn disconnect(&self, hardware: &impl Hardware) -> Result<Value, String> {
+        let mut session = self.session.lock().map_err(|_| "DeviceLockFailed")?;
+        if session.closing {
+            return Err("AppClosing".into());
         }
-        session.restore_owned = false;
-        let mut state = public(session.probe.as_ref(), false);
-        state["restored"] = result["restored"].clone();
-        Ok(state)
+        // Keep the same lock through restore and disconnect; an in-flight apply
+        // cannot slip in between restoration and releasing the session.
+        if session.restore_owned {
+            restore_locked(&mut session, hardware)?;
+        }
+        *session = Session::default();
+        Ok(public(&session))
     }
-    pub fn disconnect(&self, core: &Core) -> Result<Value, String> {
-        self.finish(core, false)?;
+    pub fn shutdown(&self, hardware: &impl Hardware) -> Result<(), String> {
         let mut session = self.session.lock().map_err(|_| "DeviceLockFailed")?;
-        session.probe = None;
-        Ok(public(None, session.restore_owned))
-    }
-    pub fn shutdown(&self, core: &Core) -> Result<(), String> {
-        self.finish(core, true)
-    }
-    fn finish(&self, core: &Core, closing: bool) -> Result<(), String> {
-        let mut session = self.session.lock().map_err(|_| "DeviceLockFailed")?;
-        session.closing |= closing;
-        let owned = session.restore_owned;
-        drop(session);
-        if owned {
-            self.restore(core)?;
+        session.closing = true;
+        if session.restore_owned {
+            restore_locked(&mut session, hardware)?;
         }
         Ok(())
     }
@@ -151,6 +302,218 @@ impl Device {
 #[cfg(test)]
 mod tests {
     use super::*;
+    struct Fake {
+        snapshot: Mutex<Value>,
+        calls: Mutex<Vec<String>>,
+        ambiguous: bool,
+    }
+    fn probe() -> Value {
+        json!({"schema_version":1,"model_id":"nuphy-kick75-io","fingerprint":"a".repeat(64),"profile":0,"led_count":85,"input_bytes":64,"output_bytes":64,"firmware":[18,0,4,170,6,0,247,247],"geometry":[0,8,4,6,15,130,247,247],"state":[2,60,2,0,1,0,153,153,153,0,60,2,1,0,255,0,0]})
+    }
+    impl Default for Fake {
+        fn default() -> Self {
+            Self {
+                snapshot: Mutex::new(
+                    json!({"probe":probe(),"recovery":{"required":false,"pending":false,"compatible":false,"code":null},"device_error":null}),
+                ),
+                calls: Mutex::default(),
+                ambiguous: false,
+            }
+        }
+    }
+    impl Hardware for Fake {
+        fn inspect(&self) -> Result<Value, String> {
+            self.calls.lock().unwrap().push("inspect".into());
+            Ok(self.snapshot.lock().unwrap().clone())
+        }
+        fn apply(&self, _signal: &Value, identity: &str) -> Result<Value, String> {
+            assert_eq!(identity, "a".repeat(64));
+            self.calls.lock().unwrap().push("apply".into());
+            let mut snapshot = self.snapshot.lock().unwrap();
+            snapshot["recovery"] =
+                json!({"required":true,"pending":self.ambiguous,"compatible":true,"code":null});
+            if self.ambiguous {
+                snapshot["probe"] = Value::Null;
+                snapshot["device_error"] = json!("DeviceDisconnected");
+                return Err("DeviceDisconnected".into());
+            }
+            let state = json!([3, 15, 2, 0, 0, 0, 24, 199, 170, 0, 60, 2, 1, 0, 255, 0, 0]);
+            snapshot["probe"]["state"] = state.clone();
+            Ok(json!({"changed":true,"state":state}))
+        }
+        fn restore(&self, identity: &str) -> Result<Value, String> {
+            assert_eq!(identity, "a".repeat(64));
+            self.calls.lock().unwrap().push("restore".into());
+            let mut snapshot = self.snapshot.lock().unwrap();
+            snapshot["probe"] = probe();
+            snapshot["recovery"] =
+                json!({"required":false,"pending":false,"compatible":false,"code":null});
+            Ok(json!({"restored":true,"state":probe()["state"]}))
+        }
+    }
+    #[test]
+    fn unplug_locks_session_and_requires_explicit_reconnection() {
+        let hardware = Fake::default();
+        let device = Device::default();
+        assert_eq!(device.require_connected().unwrap_err(), "NotConnected");
+        let connected = device.connect_hardware(&hardware).unwrap();
+        device.require_connected().unwrap();
+        assert_eq!(connected["main"]["mode"], "effect");
+        assert!(connected["main"]["color"].is_null());
+        hardware.snapshot.lock().unwrap()["probe"] = Value::Null;
+        let lost = device.status(&hardware).unwrap();
+        assert_eq!(lost["connected"], false);
+        assert_eq!(device.require_connected().unwrap_err(), "NotConnected");
+        assert_eq!(lost["reconnecting"], false);
+        hardware.snapshot.lock().unwrap()["probe"] = probe();
+        let attempts = hardware.calls.lock().unwrap().len();
+        assert_eq!(device.status(&hardware).unwrap()["connected"], false);
+        assert_eq!(hardware.calls.lock().unwrap().len(), attempts);
+        assert_eq!(
+            device.connect_hardware(&hardware).unwrap()["connected"],
+            true
+        );
+        device.disconnect(&hardware).unwrap();
+        let calls = hardware.calls.lock().unwrap().len();
+        assert_eq!(device.status(&hardware).unwrap()["reconnecting"], false);
+        assert_eq!(hardware.calls.lock().unwrap().len(), calls);
+        assert!(hardware
+            .calls
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|call| call == "inspect"));
+    }
+    #[test]
+    fn reconnect_never_switches_to_a_different_identity_or_publishes_it() {
+        let hardware = Fake::default();
+        let device = Device::default();
+        device.connect_hardware(&hardware).unwrap();
+        hardware.snapshot.lock().unwrap()["probe"]["fingerprint"] = json!("b".repeat(64));
+        let lost = device.status(&hardware).unwrap();
+        assert_eq!(lost["connected"], false);
+        assert_eq!(lost["last_error"], "DeviceChanged");
+        assert!(!lost.to_string().contains("fingerprint"));
+        hardware.snapshot.lock().unwrap()["probe"] = probe();
+        assert_eq!(device.status(&hardware).unwrap()["connected"], false);
+        assert_eq!(
+            device.connect_hardware(&hardware).unwrap()["connected"],
+            true
+        );
+    }
+    #[test]
+    fn damaged_probe_never_panics_or_remains_connected() {
+        let hardware = Fake::default();
+        let device = Device::default();
+        device.connect_hardware(&hardware).unwrap();
+        hardware.snapshot.lock().unwrap()["probe"]["state"] = json!([3, 15]);
+        let status = device.status(&hardware).unwrap();
+        assert_eq!(status["connected"], false);
+        assert_eq!(status["last_error"], "InvalidDeviceReply");
+    }
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn persisted_capture_requires_explicit_restore_after_app_restart() {
+        let hardware = Fake::default();
+        let first = Device::default();
+        first.connect_hardware(&hardware).unwrap();
+        let applied = first
+            .apply(
+                &hardware,
+                "nuphy-kick75-io",
+                &json!({"color":"#18C7AA","brightness":15}),
+            )
+            .unwrap();
+        assert_eq!(applied["main"]["mode"], "solid");
+        assert_eq!(applied["main"]["color"], "#18C7AA");
+        let restarted = Device::default();
+        let recovered = restarted.connect_hardware(&hardware).unwrap();
+        assert_eq!(recovered["recovery_required"], true);
+        assert_eq!(recovered["can_restore"], true);
+        assert_eq!(
+            restarted
+                .apply(&hardware, "nuphy-kick75-io", &json!({}))
+                .unwrap_err(),
+            "RecoveryRequired"
+        );
+        // Merely connecting/quitting does not claim an earlier capture.
+        restarted.shutdown(&hardware).unwrap();
+        assert!(!hardware
+            .calls
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|call| call == "restore"));
+        let recovery = Device::default();
+        recovery.connect_hardware(&hardware).unwrap();
+        assert_eq!(
+            recovery.restore(&hardware).unwrap()["recovery_pending"],
+            false
+        );
+    }
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn ambiguous_write_keeps_recovery_across_unplug_and_blocks_another_apply() {
+        let hardware = Fake {
+            ambiguous: true,
+            ..Fake::default()
+        };
+        let device = Device::default();
+        device.connect_hardware(&hardware).unwrap();
+        assert_eq!(
+            device
+                .apply(&hardware, "nuphy-kick75-io", &json!({}))
+                .unwrap_err(),
+            "DeviceDisconnected"
+        );
+        let lost = device.status(&hardware).unwrap();
+        assert_eq!(lost["connected"], false);
+        assert_eq!(lost["recovery_pending"], true);
+        hardware.snapshot.lock().unwrap()["probe"] = probe();
+        assert_eq!(device.status(&hardware).unwrap()["connected"], false);
+        let reconnected = device.connect_hardware(&hardware).unwrap();
+        assert_eq!(reconnected["recovery_required"], true);
+        assert_eq!(
+            device
+                .apply(&hardware, "nuphy-kick75-io", &json!({}))
+                .unwrap_err(),
+            "RecoveryRequired"
+        );
+        device.restore(&hardware).unwrap();
+        assert_eq!(
+            hardware
+                .calls
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|call| call.as_str() == "apply")
+                .count(),
+            1
+        );
+    }
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn owned_main_capture_is_restored_on_disconnect_and_shutdown_rejects_new_writes() {
+        let hardware = Fake::default();
+        let device = Device::default();
+        device.connect_hardware(&hardware).unwrap();
+        device
+            .apply(&hardware, "nuphy-kick75-io", &json!({}))
+            .unwrap();
+        device.disconnect(&hardware).unwrap();
+        assert_eq!(hardware.calls.lock().unwrap().last().unwrap(), "restore");
+        device.shutdown(&hardware).unwrap();
+        assert_eq!(
+            device.connect_hardware(&hardware).unwrap_err(),
+            "AppClosing"
+        );
+        assert_eq!(
+            device
+                .apply(&hardware, "nuphy-kick75-io", &json!({}))
+                .unwrap_err(),
+            "AppClosing"
+        );
+    }
     #[test]
     #[ignore = "Requires an explicitly authorized USB Kick75 Mac-profile hardware test"]
     fn manual_kick75_connection_apply_readback_and_restore() {
@@ -178,9 +541,31 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_secs(2));
         let readback = core.probe_device().unwrap();
         assert_eq!(readback["state"], applied["state"]);
+        let status = device.status(&core).unwrap();
+        assert_eq!(status["main"]["mode"], "solid");
+        assert_eq!(status["main"]["brightness"], 15);
+        assert_eq!(status["recovery_pending"], true);
+        assert_eq!(status["recovery_required"], false);
+        let restarted = Device::default();
+        let recovery = restarted.connect(&core).unwrap();
+        assert_eq!(recovery["recovery_required"], true);
+        assert_eq!(recovery["can_restore"], true);
+        assert_eq!(
+            restarted
+                .apply(
+                    &core,
+                    "nuphy-kick75-io",
+                    &json!({"color":"#FF0000","brightness":15})
+                )
+                .unwrap_err(),
+            "RecoveryRequired"
+        );
+        restarted.shutdown(&core).unwrap(); // An unowned capture is not restored on Quit.
+        assert_eq!(core.probe_device().unwrap()["state"], readback["state"]);
         device.restore(&core).unwrap();
         let after = core.probe_device().unwrap();
         assert_eq!(before["state"], after["state"]);
+        assert_eq!(device.status(&core).unwrap()["recovery_pending"], false);
         device.disconnect(&core).unwrap();
         drop(guard);
         println!("USB connect, solid apply, actual readback and exact original restoration passed; side unchanged.");

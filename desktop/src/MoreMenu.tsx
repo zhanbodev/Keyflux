@@ -14,6 +14,9 @@ export function MoreMenu({
   const firstFocus = useRef(0);
   const id = useId();
   useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+  useEffect(() => {
     const dismiss = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) setOpen(false);
     };
@@ -59,7 +62,7 @@ export function MoreMenu({
           <circle cx="19" cy="12" r="1.5" />
         </svg>
       </button>
-      {open && (
+      {open && !disabled && (
         <div
           className="more-options"
           id={id}

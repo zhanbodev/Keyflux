@@ -66,8 +66,12 @@ impl Core {
         };
         self.execute(&args, input, true)
     }
+    #[cfg(test)]
     pub fn probe_device(&self) -> Result<Value, String> {
         self.execute(&["hardware-probe"], None, false)
+    }
+    pub fn inspect_device(&self) -> Result<Value, String> {
+        self.execute(&["hardware-status"], None, false)
     }
     pub fn apply_device(&self, signal: &Value, identity: &str) -> Result<Value, String> {
         let object = signal.as_object().ok_or("InvalidSignal")?;

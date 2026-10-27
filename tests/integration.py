@@ -106,6 +106,12 @@ class RuntimeTest(unittest.TestCase):
             result = self.call(*args, check=False)
             self.assertEqual(result.returncode, 1)
             self.assertEqual(json.loads(result.stdout)["code"], "HardwareRequiresDefaultStateDirectory")
+        # The recovery reader must use the same canonical journal as mutations,
+        # and reject isolated/extra options before touching HID.
+        for args in [("hardware-status",), ("hardware-status", "--simulate"), ("hardware-status", "--otlp-port", "4318")]:
+            result = self.call(*args, check=False)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(json.loads(result.stdout)["code"], "UnexpectedArgument")
         self.assertFalse((self.directory / "kick75-recovery.json").exists())
         self.assertEqual(self.status()["backend"], "simulated")
 

@@ -13,10 +13,10 @@ A local AI status lighting companion, built around a Zig core for macOS and Wind
 ## What works today
 
 - A Zig state engine that aggregates sessions, correlates tool and approval events, and rejects stale events after a turn ends.
-- A simulated keyboard with write deduplication, a durable recovery journal, and recovery after forced termination.
+- A development-only simulated keyboard for offline protocol tests, write deduplication and crash-recovery tests; the App never uses this backend.
 - Read-only NuPhy USB HID inventory, plus an experimental Kick75 IO (`19f5:1026`) main-light driver with manual solid colors, exact readback and durable raw-state recovery.
 - A Codex hook adapter and an optional authenticated, loopback-only OTLP/HTTP receiver for JSON and protobuf logs.
-- A shared Tauri 2 + React/TypeScript settings app with model previews, per-state RGB/brightness editing, main/side palettes and native file dialogs. Kick75 combines extracted geometry with locally cached NuPhy reference artwork; Air75 V3 is a layout example.
+- A shared Tauri 2 + React/TypeScript settings app with model previews, per-state RGB/brightness editing, main/side palettes and native file dialogs. Kick75 combines extracted geometry with locally cached NuPhy reference artwork; unverified layout examples are excluded from the App catalog.
 - Versioned event, keyboard-model, and theme contracts with validators and contribution guidance.
 
 Thinking requires an explicit reasoning event. Silence, elapsed time, or the absence of tool calls do not establish that phase. Completion means a turn ended, not that its result is correct.
@@ -73,6 +73,7 @@ Use `--state-dir PATH` on both the server and clients to isolate an instance. Ke
 
 ```sh
 ./zig-out/bin/keyflux hardware-probe              # Read-only firmware and light configuration
+./zig-out/bin/keyflux hardware-status             # Read-only device and durable recovery metadata
 ./scripts/test-kick75-macos.sh                    # Build, show three colors, verify and restore
 ./zig-out/bin/keyflux hardware-solid '#06B6D4' 15
 ./zig-out/bin/keyflux hardware-restore
@@ -91,7 +92,9 @@ npm --prefix desktop ci
 node desktop/scripts/dev.mjs
 ```
 
-The launcher builds the Zig sidecar and opens a **real read-only core** in an isolated development directory. The App attempts a read-only USB connection and displays the actual connection result; it never substitutes a simulated device. Click **Connect keyboard** to retry after plugging in USB. Missing hardware leaves the editor available.
+The launcher builds the Zig sidecar and opens a **real read-only core** in an isolated development directory. Click **Connect keyboard** to identify the actual USB device. Startup never connects automatically. Until a successful connection, the App shows a neutral outline and connection gate; editing, brightness, import/export, saving and physical actions are locked. There is no simulated device or browser fixture entry in the shipped frontend.
+
+For the verified Kick75 combination, choose a state/color and click **Apply to keyboard** for a main-zone solid write with configuration readback. The device readback row stays separate from the color draft. Visible settings recheck an existing connection every approximately 4.5 seconds. Losing USB locks controls and stops device probing until the user clicks Connect again. **Disconnect** restores a capture owned by this App. Draft edits survive disconnect/reconnect. A capture left by an earlier App lifetime requires explicit **Restore lighting** before another write; unknown/mismatched records block writes. Strip editing and **Follow state** remain screen previews.
 
 The top keyboard has no card background, floating/sticky layer or selectable keys. The white console fits the supported window sizes without page scrolling, with vertical **Main / Light bar** navigation, a compact state list and a custom saturation/value + hue + RGB picker. Menus are app-drawn. Light color follows the original key-outline masks rather than filling the key faces. The old artificial outer gray strips are removed; the optional small right light-bar aperture is a screen illustration only.
 

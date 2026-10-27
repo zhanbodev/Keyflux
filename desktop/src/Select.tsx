@@ -18,6 +18,9 @@ export function Select({
   const trigger = useRef<HTMLButtonElement>(null);
   const id = useId();
   useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+  useEffect(() => {
     const dismiss = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) setOpen(false);
     };
@@ -78,7 +81,7 @@ export function Select({
           <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" />
         </svg>
       </button>
-      {open && (
+      {open && !disabled && (
         <div id={id} role="listbox" aria-label={label} className="select-options">
           {options.map((option, index) => (
             <button

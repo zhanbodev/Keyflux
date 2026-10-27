@@ -10,6 +10,23 @@ pub fn fixture() k.Probe {
     return .{ .fingerprint = @splat('a'), .firmware = .{ 18, 0, 4, 170, 6, 0, 240, 240 }, .geometry = .{ 0, 8, 4, 6, 15, 130, 240, 240 }, .profile = 0, .led_count = 85, .state = .{ 2, 60, 2, 0, 1, 0, 153, 153, 153, 0, 60, 2, 1, 0, 255, 0, 0 }, .input_bytes = 64, .output_bytes = 64 };
 }
 
+test "read-only recovery status survives disconnect and rejects a different device" {
+    const info = fixture();
+    var journal = k.Journal{ .original = info, .expected = info.state };
+    try expect(!k.recoveryStatus(null, info).required);
+    const disconnected = k.recoveryStatus(journal, null);
+    try expect(disconnected.required and !disconnected.compatible);
+    const connected = k.recoveryStatus(journal, info);
+    try expect(connected.required and connected.compatible and !connected.pending);
+    journal.pending = true;
+    try expect(k.recoveryStatus(journal, info).pending);
+    var other = info;
+    other.fingerprint[0] = 'b';
+    const mismatch = k.recoveryStatus(journal, other);
+    try expect(mismatch.required and !mismatch.compatible);
+    try expect(std.mem.eql(u8, mismatch.code.?, "RecoveryIdentityMismatch"));
+}
+
 test "Kick75 validates HID shape and command boundaries" {
     const shape = try k.reportShape(&.{ 0x75, 8, 0x95, 64, 0x81, 2, 0x91, 2 });
     try expect(shape.input == 64 and shape.output == 64);

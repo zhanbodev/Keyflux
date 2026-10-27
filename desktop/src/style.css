@@ -158,12 +158,46 @@ fieldset:disabled .sv-plane {
   color: #256dd5;
 }
 .keyboard-stage {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px 12px;
+  gap: 8px;
+}
+.keyboard-canvas {
   container-type: size;
   min-height: 0;
   min-width: 0;
   display: grid;
   place-items: center;
-  padding: 8px 12px 16px;
+  width: 100%;
+  flex: 1;
+}
+.device-readback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 16px;
+  flex: none;
+  font-size: 10px;
+  color: #8b929d;
+  font-variant-numeric: tabular-nums;
+}
+.device-readback i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid #0001;
+}
+.device-readback strong {
+  font-weight: 500;
+  color: #606a78;
+}
+.device-readback .recovery-hint {
+  margin-left: 6px;
+  color: #69798c;
 }
 .keyboard {
   position: relative;
@@ -261,6 +295,39 @@ fieldset:disabled .sv-plane {
   border-radius: 8px 8px 0 0;
   min-height: 0;
   padding: 16px 0;
+}
+.connection-gate {
+  background: #fff;
+  border: 1px solid #e3e6ea;
+  border-radius: 8px 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.connection-gate > svg {
+  fill: none;
+  stroke: #8793a4;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.connection-gate h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.connection-gate p {
+  margin: 0 0 6px;
+  color: #8b929d;
+  font-size: 12px;
+}
+.connection-gate .primary {
+  background: #2e333d;
+  border-color: #2e333d;
+  color: #fff;
+  padding: 9px 22px;
 }
 .zone-nav {
   display: flex;

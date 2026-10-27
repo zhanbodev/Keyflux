@@ -14,6 +14,7 @@ const usage =
     \\Keyflux 0.1.0-dev — internal validation build
     \\  keyflux diagnose                       Read-only NuPhy HID inventory
     \\  keyflux hardware-probe                 Read-only Kick75 firmware / light state
+    \\  keyflux hardware-status                Read-only device + durable recovery status
     \\  keyflux hardware-solid '#00FFFF' 15    Manual main-light color; durable capture
     \\  keyflux hardware-restore               Restore captured main-light effect
     \\  keyflux hardware-verify-restore        Test exact current-state roundtrip; keep journal
@@ -384,6 +385,28 @@ fn run(init: std.process.Init) !void {
         const n = p.kf_hid_diagnose(buffer.ptr, buffer.len);
         if (n < 0) return error.HidEnumerationFailed;
         p.kf_print(buffer.ptr, @intCast(n), 0);
+        return;
+    }
+    if (eq(command, "hardware-status")) {
+        if (directory != null or simulate or port != 0 or expected_device != null or positional.items.len != 1) return error.UnexpectedArgument;
+        if (p.kf_init(null) != 0) return error.StateDirectoryUnavailable;
+        var keyboard: kick75.Keyboard = .{};
+        var device_error: ?[]const u8 = null;
+        keyboard.connect() catch |err| {
+            device_error = @errorName(err);
+        };
+        defer if (device_error == null) keyboard.close();
+        const probe: ?kick75.Probe = if (device_error == null) keyboard.info else null;
+        var recovery: kick75.RecoveryStatus = .{};
+        if (try readState(a, "kick75-recovery.json", 16384)) |bytes| {
+            if (std.json.parseFromSlice(kick75.Journal, a, bytes, .{})) |parsed| {
+                defer parsed.deinit();
+                recovery = kick75.recoveryStatus(parsed.value, probe);
+            } else |_| {
+                recovery = .{ .required = true, .code = "InvalidRecoveryRecord" };
+            }
+        }
+        try output(a, .{ .ok = true, .probe = probe, .recovery = recovery, .device_error = device_error });
         return;
     }
     if (eq(command, "hardware-probe")) {

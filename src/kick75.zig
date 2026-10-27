@@ -17,6 +17,25 @@ pub const Probe = struct {
     read_only: bool = true,
 };
 pub const ReportShape = struct { input: u16 = 0, output: u16 = 0 };
+/// Public recovery metadata; never exports the saved capture or USB identity.
+pub const RecoveryStatus = struct {
+    required: bool = false,
+    pending: bool = false,
+    compatible: bool = false,
+    code: ?[]const u8 = null,
+};
+pub fn recoveryStatus(journal: ?Journal, current: ?Probe) RecoveryStatus {
+    const saved = journal orelse return .{};
+    var result: RecoveryStatus = .{ .required = true, .pending = saved.pending };
+    if (current) |info| {
+        saved.validate(info) catch |err| {
+            result.code = @errorName(err);
+            return result;
+        };
+        result.compatible = true;
+    }
+    return result;
+}
 pub const Journal = struct {
     schema_version: u8 = 1,
     format: []const u8 = "kick75-s4-main-v1",
