@@ -1,6 +1,6 @@
 # Kick75 IO main-light validation
 
-**Status: experimental, manual CLI only.** Tested on 2026-10-26 with a physical USB Kick75 IO, firmware **4.0.18.6**, **Mac keyboard profile**, Apple Silicon macOS. [Redacted evidence](../evidence/kick75-main-20261026.json) records the exact environment, decoded state and results. Windows and Win keyboard profile writes remain disabled. The macOS settings app and AI event pipeline still use read-only/simulated backends.
+**Status: experimental CLI and desktop following.** Tested with a physical USB Kick75 IO, firmware **4.0.18.6**, **Mac keyboard profile**, Apple Silicon macOS. The [initial evidence](../evidence/kick75-main-20261026.json) records manual protocol verification. On 2026-10-27 a real local Codex Desktop working state drove the App follower's main-light intent, passed independent D5 readback, preserved strip bytes and restored all 17 original bytes on disconnect. See [local source verification](../CODEX_LOCAL.md). The Zig event service retains a read-only backend; the native desktop session explicitly executes validated hardware commands after Connect. Windows and Win-profile writes remain disabled.
 
 ## Run locally
 

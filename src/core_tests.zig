@@ -289,3 +289,34 @@ test "side writes require explicit capability and implementation" {
     try testing.expectError(error.InvalidBrightness, device.driver().setSolid(invalid));
     try testing.expectEqual(@as(u64, 0), device.writes);
 }
+
+test "confirmed working activity resumes source without inventing reasoning or clearing requests" {
+    const c = try core();
+    defer testing.allocator.destroy(c);
+    _ = try c.apply(e(.turn_started, "s", "t", "1", 1), 1);
+    var wait = e(.attention, "s", "t", "2", 2);
+    wait.request_id = "request";
+    _ = try c.apply(wait, 2);
+    _ = try c.apply(e(.source_lost, "s", "t", "3", 3), 3);
+    try testing.expectEqual(.unknown, c.snapshot(3).phase);
+    _ = try c.apply(e(.working, "s", "t", "4", 4), 4);
+    try testing.expectEqual(.attention, c.snapshot(4).phase);
+    var done = e(.tool_finished, "s", "t", "5", 5);
+    done.request_id = "request";
+    _ = try c.apply(done, 5);
+    try testing.expectEqual(.working, c.snapshot(5).phase);
+}
+test "long running reader recycles ended sessions and rejects retired history" {
+    const c = try core();
+    defer testing.allocator.destroy(c);
+    for (0..80) |i| {
+        var buffer: [20]u8 = undefined;
+        const id = try std.fmt.bufPrint(&buffer, "session-{d}", .{i});
+        const ts: u64 = @intCast(i * 2 + 1);
+        _ = try c.apply(e(.turn_started, id, "t", "start", ts), ts);
+        _ = try c.apply(e(.turn_completed, id, "t", "end", ts + 1), ts + 1);
+    }
+    try testing.expectEqual(@as(usize, 64), c.snapshot(1000).tracked_sessions);
+    try testing.expectEqual(.stale, try c.apply(e(.turn_started, "session-0", "t", "delayed", 1), 1000));
+    try testing.expectEqual(@as(usize, 0), c.snapshot(1000).active_tasks);
+}

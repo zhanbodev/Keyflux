@@ -8,14 +8,14 @@
 
 本地 AI 状态灯伴侣，使用面向 macOS / Windows 的 Zig 核心，将 Agent 活动映射为键盘灯光，并为键盘、AI 接入和灯效提供独立扩展入口。
 
-**当前阶段：v0.1 内部验证，已支持 macOS / USB / 固件 4.0.18.6 / Mac 档的 Kick75 IO 手动主灯测试。** 常亮变色、精确配置回读和原灯效恢复已通过实机验证。App 连接后已启用实验性真实事件跟随；桌面 App 现支持 macOS 下经验证的手动 USB 主灯控制；真实 Codex 桌面阶段、写入持久化与完整设备生命周期仍待验证。
+**当前阶段：v0.1 内部验证。** App 已自动读取本机 Codex Desktop 的真实状态。实际工作状态已驱动 USB Kick75 IO 主灯（macOS／4.0.18.6／Mac 档），通过独立回读并在断开后精确恢复原灯效。实时 Thinking／输出、Work／Chat、写入持久化与完整设备生命周期仍待验证。
 
 ## 当前能力
 
 - Zig 状态引擎：多会话汇总、工具与审批关联、结束回合的迟到事件隔离。
 - 仅供离线开发测试的模拟键盘：相同写入去重、持久化恢复日志、强制终止后的恢复。
 - NuPhy USB HID 只读枚举，以及实验性的 Kick75 IO（`19f5:1026`）主灯驱动：手动常亮、精确回读、完整原态持久恢复。
-- Codex hook 适配器，以及可选的本机鉴权 OTLP/HTTP 接收器，支持 JSON 和 protobuf 日志。
+- 自动只读本地索引与增量事件的 Codex Desktop adapter；另保留开发用 hook 适配器，以及可选的本机鉴权 OTLP/HTTP 接收器，支持 JSON 和 protobuf 日志。
 - Tauri 2 + React/TypeScript 共享设置界面：按型号预览、逐状态 RGB／亮度编辑、主键区与侧灯独立配色及原生文件对话框；Kick75 使用提取的几何与本地缓存的 NuPhy 参考素材，未验证的布局示例不进入 App 型号目录。
 - 版本化的事件、键盘型号和主题契约，附校验工具及贡献指南。
 
@@ -98,7 +98,7 @@ node desktop/scripts/dev.mjs
 
 键盘区无卡片背景、不悬浮、不允许选区或选键。下方白色控制台在支持的窗口尺寸内一屏显示，左侧纵向切换“主键区／条形灯”，状态列表去除 HEX，右侧使用自绘饱和度/明度、色相条、RGB、预设和最近颜色。下拉菜单由 App 绘制。主灯呈现为彩色键帽轮廓而非整键填色；两侧虚构灰条已删除，仅在启用条形灯预览时显示右侧小开口示意。
 
-已验证的 USB Kick75／macOS／Mac 档／4.0.18.6 连接后开始后台跟随，不再需要“跟随状态／应用到键盘／恢复灯效”按钮。保存配色后，真实活动状态使用新的颜色；选择状态或拖动配色只改变预览。空闲、明确来源失效、断开或正常退出时内部恢复原灯效。Windows、未知固件与条形灯仍不写入。首版优先接入 ChatGPT 桌面 App 的 Work、Chat、Codex，不要求用户操作 CLI；三条真实事件渠道尚待分别验证，见[桌面 App 接入范围](docs/CHATGPT_DESKTOP.md)。连接键盘不等于已收到 App 状态。
+已验证的 USB Kick75／macOS／Mac 档／4.0.18.6 连接后开始后台跟随，不再需要“跟随状态／应用到键盘／恢复灯效”按钮。保存配色后，真实活动状态使用新的颜色；选择状态或拖动配色只改变预览。空闲、明确来源失效、断开或正常退出时内部恢复原灯效。Windows、未知固件与条形灯仍不写入。首版优先接入 ChatGPT 桌面 App 的 Work、Chat、Codex，不要求用户操作 CLI；本地 Codex 已自动监听，Work／Chat 与实时细分阶段尚待验证，见[桌面 App 接入范围](docs/CHATGPT_DESKTOP.md)。连接键盘不等于已收到 App 状态。
 
 ```sh
 ./scripts/dev-macos.sh --no-build       # 复用已构建的 Zig sidecar
@@ -131,17 +131,9 @@ Ubuntu 等开发系统可用 `zig test src/tests.zig` 验证纯 Zig 核心。mac
 
 ## Codex 接入
 
-生成待审查的配置片段：
+桌面 App 自动只读本地索引与增量事件，跟随现有 Codex 会话；连接 USB 键盘后即可跟随工作、关联工具／输入请求及结束状态。无需启动 CLI 会话、提供 API key、信任 hooks 或手工设置 telemetry。详见[本地接入方式与验证范围](docs/CODEX_LOCAL.md)。
 
-```sh
-./zig-out/bin/keyflux setup-codex "$PWD/zig-out/bin/keyflux"
-```
-
-该命令不实施配置修改。按 [Codex 接入指南](docs/CODEX.md) 保留已有 hooks/exporter 设置、审查并信任 hooks，再验证实际桌面版本。
-
-使用 `keyflux serve --simulate --otlp-port 4318` 启动可选接收器。它仅监听 `127.0.0.1`，Bearer token 保存在实例目录的 `otlp-token` 中，请勿分享该文件。接收器只保留结构字段，不保存提示词、对话正文和工具内容；Keyflux 不自动上传遥测。
-
-真实桌面事件覆盖、会话关联、导出延迟和自动来源崩溃检测仍需验证。模拟输入不能证明这些能力已可用。
+当前 App 落盘的是已完成的 reasoning／message 片段，因此本 adapter 不宣称实时 Thinking／输出。Work、Chat 仍需分别接入。开发用 hooks／OTLP 工具继续保留，见[开发者指南](docs/CODEX.md)。
 
 ## 扩展 Keyflux
 

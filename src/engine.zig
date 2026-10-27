@@ -44,6 +44,7 @@ pub const Engine = struct {
     seen_index: usize = 0,
     revision: u64 = 0,
     completed_at: ?u64 = null,
+    retired_before: u64 = 0,
     completion_hold_ns: u64 = 5 * std.time.ns_per_s,
 
     pub fn apply(self: *Engine, e: event.Event, now: u64) !Result {
@@ -77,7 +78,19 @@ pub const Engine = struct {
         }
         if (slot == null) {
             if (e.kind != .turn_started or e.task_id != null) return error.MissingTurnStart;
+            if (e.timestamp_ns <= self.retired_before) return .stale;
+            if (empty == null) {
+                var oldest: u64 = std.math.maxInt(u64);
+                for (&self.sessions) |*s| if (s.*) |v| {
+                    if (v.ended and v.watermark < oldest) {
+                        oldest = v.watermark;
+                        empty = s;
+                    }
+                };
+                if (empty != null) self.retired_before = @max(self.retired_before, oldest);
+            }
             slot = empty orelse return error.SessionCapacity;
+            slot.?.* = null;
         }
         // Apply transactionally: invalid/capacity-limited events leave no changes.
         var next = slot.?.* orelse Session{};
@@ -137,7 +150,7 @@ pub const Engine = struct {
             const l = lane.?;
             if (l.terminal or e.timestamp_ns < l.updated) return .stale;
             switch (e.kind) {
-                .turn_started => l.phase = .working,
+                .turn_started, .working => l.phase = .working,
                 .thinking => l.phase = .thinking,
                 .output => l.phase = .output,
                 .tool_started, .attention => {

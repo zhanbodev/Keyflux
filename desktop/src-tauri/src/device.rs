@@ -838,6 +838,58 @@ mod tests {
         println!("Controlled real-core events -> automatic USB main colors -> exact original restoration passed. This is not a real Codex export test.");
     }
     #[test]
+    #[ignore = "Uses real Codex Desktop records and the connected USB Kick75, then restores its original effect"]
+    fn manual_real_desktop_to_kick75() {
+        let binary = std::env::var_os("KEYFLUX_TEST_CORE").expect("built Zig core");
+        let directory = std::path::PathBuf::from("/private/tmp")
+            .join(format!("keyflux-live-hid-{}", crate::codex::now_ns()));
+        std::fs::create_dir(&directory).unwrap();
+        let core = Core::new(binary.into(), Some(directory.clone()), false);
+        core.ensure().unwrap();
+        let device = Device::default();
+        struct Finish<'a>(&'a Device, &'a Core);
+        impl Drop for Finish<'_> {
+            fn drop(&mut self) {
+                let _ = self.0.shutdown(self.1);
+                self.1.stop_owned();
+            }
+        }
+        let finish = Finish(&device, &core);
+        core.call("theme-set",Some(&json!({"signals":{"working":{"color":"#3B82F6","brightness":15},"tool":{"color":"#8B5CF6","brightness":15},"attention":{"color":"#FF9500","brightness":15},"complete":{"color":"#22C55E","brightness":15}}}))).unwrap();
+        let source = crate::codex::Source::default();
+        source.poll(&core);
+        assert_eq!(source.snapshot()["available"], true);
+        assert!(source.snapshot()["active_sessions"].as_u64().unwrap() > 0);
+        device.connect(&core).unwrap();
+        device.start_following(&core).unwrap();
+        let before = core.probe_device().unwrap();
+        for _ in 0..3 {
+            source.poll(&core);
+            let state = core.call("status", None).unwrap();
+            assert!(matches!(
+                state["result"]["state"]["phase"].as_str(),
+                Some("working" | "tool" | "attention")
+            ));
+            device.follow_core(&core);
+            let actual = core.probe_device().unwrap();
+            let shown = device.status(&core).unwrap();
+            assert_eq!(shown["main"]["mode"], "solid");
+            assert_eq!(shown["main"]["brightness"], 15);
+            assert_eq!(actual["state"], shown["state"]);
+            assert_eq!(
+                actual["state"].as_array().unwrap()[9..],
+                before["state"].as_array().unwrap()[9..]
+            );
+            println!("Real Desktop phase {} -> acknowledged USB color {}, brightness 15%; side unchanged.",state["result"]["state"]["phase"],shown["main"]["color"]);
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+        device.disconnect(&core).unwrap();
+        assert_eq!(core.probe_device().unwrap()["state"], before["state"]);
+        println!("Real Desktop source -> Zig aggregate -> USB main light readback passed; original 17-byte state restored exactly. No synthetic source events were submitted.");
+        drop(finish);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+    #[test]
     #[ignore = "Requires an explicitly authorized USB Kick75 Mac-profile hardware test"]
     fn manual_kick75_connection_apply_readback_and_restore() {
         let binary = std::env::var_os("KEYFLUX_TEST_CORE").expect("built Zig CLI");

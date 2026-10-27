@@ -14,21 +14,22 @@ export the same lifecycle or streaming events.
 
 | Surface | Actual evidence | Remaining gate |
 | --- | --- | --- |
-| Codex in the App | Existing core can parse documented lifecycle hooks and correlated stream kinds | Verify App-delivered callbacks, correlation and latency without requiring CLI setup |
+| Codex in the App, local machine | Read-only local-index/events adapter; real Desktop working/tool observed; working drove real Kick75 with D5 readback and exact disconnect restoration | Live streaming Thinking/output, real completion/approval observations, latency and broader lifecycle |
 | Work in the App, locally orchestrated | Official documentation says supported local hooks continue to work | Verify this execution mode, account/version and actual phases in the App |
 | Work Cloud | Official documentation distinguishes cloud orchestration from local execution; local hooks and OTel do not cover the entire run | Establish an App-compatible channel, including personal-account support; do not label local tool execution as model Thinking |
 | Chat in the App | No unified exported lifecycle/phase channel has been established in this project | Establish and validate a channel for actual generation, output, completion and disconnect |
 
-All three user-facing adapters remain **unverified**. The normal App has no
-synthetic source, no automatically installed Codex configuration, and no default
-OTLP listener. The temporary CLI setup used during investigation was rolled back
-with exact receipt/hash checks; original user configuration was restored.
+The local Codex adapter now starts automatically and follows existing Desktop
+sessions without CLI setup. See [source behavior and verification](CODEX_LOCAL.md).
+Work and Chat remain unverified. No synthetic source, automatically installed
+Codex configuration or default OTLP listener is used. The earlier temporary CLI
+configuration was rolled back; original user configuration remains restored.
 
-The keyboard session and background follower are implemented independently of
-the source adapter. A controlled test of real Zig IPC → real Kick75 USB colors →
-exact restoration passed. That is HID integration evidence, **not** evidence of
-real Work/Chat/Codex monitoring. The App therefore displays a concise waiting
-state when no actual App events are available.
+The App reports actual local-source availability instead of deriving an
+integration failure from an idle AI phase. A real local-source -> Zig -> USB
+main-light/readback -> exact disconnect restoration test passed. The current
+recordings expose completed reasoning/message items, so this adapter keeps those
+as ordinary working evidence and does not emit live Thinking/output claims.
 
 ## Adapter rules
 

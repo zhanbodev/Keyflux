@@ -75,6 +75,7 @@ fn unique(a: Allocator) ![]const u8 {
 const Recovery = struct { schema_version: u8, backend: enum { simulated }, original: devices.Capture };
 const Evidence = struct { records: u64 = 0, reasoning: u64 = 0, output: u64 = 0, correlated: u64 = 0, rejected: u64 = 0, applied: u64 = 0, max_arrival_delay_ms: u64 = 0 };
 const Runtime = struct {
+    runtime_id: u64 = 0,
     core: engine.Engine = .{},
     simulated: bool = false,
     device: devices.Simulated = .{},
@@ -119,6 +120,7 @@ const Runtime = struct {
         }
     }
     const Status = struct {
+        runtime_id: u64,
         schema_version: u8 = 1,
         version: []const u8 = "0.1.0-dev",
         state: engine.Snapshot,
@@ -138,7 +140,7 @@ const Runtime = struct {
     fn snapshot(self: *Runtime, now: u64) Status {
         var stats: [3]u64 = @splat(0);
         const available = p.kf_process_stats(&stats) == 0;
-        return .{ .schema_version = 1, .version = "0.1.0-dev", .state = self.core.snapshot(now), .backend = if (self.simulated) "simulated" else "read-only", .main_write_enabled = self.simulated, .release_ready = false, .acknowledged = self.lease.acknowledged, .lighting = self.theme.signal(self.core.snapshot(now).phase), .otlp_port = self.otlp_port, .device_error = self.device_error, .evidence = self.evidence, .preview = self.preview_phase, .process_metrics = .{ .available = available, .cpu_time_ns = stats[0], .resident_bytes = stats[1], .monotonic_ns = stats[2] } };
+        return .{ .runtime_id = self.runtime_id, .schema_version = 1, .version = "0.1.0-dev", .state = self.core.snapshot(now), .backend = if (self.simulated) "simulated" else "read-only", .main_write_enabled = self.simulated, .release_ready = false, .acknowledged = self.lease.acknowledged, .lighting = self.theme.signal(self.core.snapshot(now).phase), .otlp_port = self.otlp_port, .device_error = self.device_error, .evidence = self.evidence, .preview = self.preview_phase, .process_metrics = .{ .available = available, .cpu_time_ns = stats[0], .resident_bytes = stats[1], .monotonic_ns = stats[2] } };
     }
     fn handle(self: *Runtime, a: Allocator, bytes: []const u8, now: u64) ![]const u8 {
         const parsed = try std.json.parseFromSlice(Value, a, bytes, .{ .max_value_len = max_request });
@@ -292,7 +294,7 @@ fn serve(a: Allocator, simulated: bool, port: u16) !void {
     if (p.kf_listen(port) != 0) return error.DaemonAlreadyRunningOrBindFailed;
     defer p.kf_shutdown();
     const runtime = try a.create(Runtime);
-    runtime.* = .{ .simulated = simulated, .otlp_port = port, .theme_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator) };
+    runtime.* = .{ .runtime_id = p.kf_monotonic_ns(), .simulated = simulated, .otlp_port = port, .theme_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator) };
     defer runtime.theme_arena.deinit();
     if (try readState(a, "theme.json", 16384)) |bytes| try runtime.loadTheme(bytes);
     if (simulated) {

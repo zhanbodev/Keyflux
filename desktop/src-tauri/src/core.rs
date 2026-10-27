@@ -73,6 +73,10 @@ impl Core {
     pub fn inspect_device(&self) -> Result<Value, String> {
         self.execute(&["hardware-status"], None, false)
     }
+    // Native source only; never exposed as a WebView command.
+    pub(crate) fn emit_local_event(&self, event: &Value) -> Result<(), String> {
+        self.execute(&["emit"], Some(event), true).map(|_| ())
+    }
     pub fn apply_device(&self, signal: &Value, identity: &str) -> Result<Value, String> {
         let object = signal.as_object().ok_or("InvalidSignal")?;
         let color = object

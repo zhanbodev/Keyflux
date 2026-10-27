@@ -24,6 +24,7 @@
 | kind | 意义 |
 |---|---|
 | turn_started | 创建根回合或子任务；开始时仅显示 working |
+| working | 确认仍在活动，但阶段未公开；保留未解决的工具／审批请求 |
 | thinking / output | 已观测 reasoning / assistant 输出阶段 |
 | tool_started / tool_finished | 相同 request_id 的工具开始和结束 |
 | attention / attention_resolved | 相同 request_id 的等待及解除 |
@@ -34,7 +35,7 @@
 
 根回合必须先 start。根回合结束会终止其子任务；子任务结束不会终止父任务。相同 session 同时只允许一个根回合；新回合必须有新的 ID 和更晚的时间戳。已结束回合不能被阶段事件或旧 start 复活。
 
-当前上限：64 个会话、每回合 8 个任务（含根任务）、每任务 8 个待关联请求、最近 256 个去重摘要。会话保留最新回合墓碑，容量满时明确报错，不偷偷淘汰仍需隔离的身份。v0.1 没有跨重启恢复活动任务；恢复日志只恢复灯光。长驻使用的会话回收策略在稳定版前补充。
+当前上限：64 个会话、每回合 8 个任务（含根任务）、每任务 8 个待关联请求、最近 256 个去重摘要。会话容量满时仅回收最早结束的墓碑，并保存退役时间水位，拒绝不晚于水位的历史 start。活动会话不被淘汰，全部活动时返回 SessionCapacity。核心不持久化活动任务；本地 adapter 在核心重启后重新核实来源并重建状态。恢复日志只恢复灯光。
 
 ## 提交与响应
 
@@ -62,3 +63,5 @@ macOS 使用状态目录 `control.sock`，目录 0700。请求是一行 JSON，�
 每个 adapter 文档必须列明实际版本、可观察阶段、子任务范围、关联字段、失联检测和延迟证据。例如当前 Codex hooks 能建立 working/tool/attention/completion；thinking/output 依赖单独的流事件验证。能力缺失必须上报 unknown 或保留 working，不能推断。
 
 v1.0 前有破坏性改动时提升 schema_version 并给迁移说明，不重解释旧字段。
+
+草案修订 2026-10-27：新增 `working` kind，既有 kind 语义不变。旧核心不能接收新 kind，adapter 必须与本次核心一起升级。本地 adapter 使用 provider `codex.desktop.local`，提交经过证据核实的状态观测；timestamp_ns 是该观测生成时间，源文件时间另用于进程存活和新旧记录校验，不能作为实时流延迟证据。status.result.runtime_id 在核心重启时改变，用于触发 adapter 重新建立状态。

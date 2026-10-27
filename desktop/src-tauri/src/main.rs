@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod codex;
 mod core;
 mod device;
 mod tray;
@@ -14,6 +15,7 @@ use tauri_plugin_dialog::DialogExt;
 
 type Shared = Arc<Core>;
 type SharedDevice = Arc<device::Device>;
+type SharedSource = Arc<codex::Source>;
 type Reply = Result<Value, String>;
 
 async fn blocking<T: Send + 'static>(
@@ -24,8 +26,9 @@ async fn blocking<T: Send + 'static>(
         .map_err(|_| "DesktopTaskFailed".to_owned())?
 }
 #[tauri::command]
-async fn get_status(core: State<'_, Shared>) -> Reply {
+async fn get_status(core: State<'_, Shared>, source: State<'_, SharedSource>) -> Reply {
     let core = core.inner().clone();
+    let source = source.inner().clone();
     blocking(move || {
         let mut value = match core.call("status", None) {
             Ok(value) => value,
@@ -35,6 +38,7 @@ async fn get_status(core: State<'_, Shared>) -> Reply {
             }
         };
         value["desktop"] = core.context();
+        value["desktop"]["source"] = source.snapshot();
         Ok(value)
     })
     .await
@@ -179,9 +183,14 @@ fn main() {
     let exit_keyboard = keyboard.clone();
     let follow_core = service.clone();
     let follow_keyboard = keyboard.clone();
+    let source = Arc::new(codex::Source::default());
+    let source_core = service.clone();
+    let source_keyboard = keyboard.clone();
+    let follow_source = source.clone();
     tauri::Builder::default()
         .manage(service)
         .manage(keyboard)
+        .manage(source)
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             get_status,
@@ -214,6 +223,15 @@ fn main() {
         .expect("Keyflux desktop initialization")
         .run(move |_app, event| match event {
             tauri::RunEvent::Ready => {
+                let source = follow_source.clone();
+                let core = source_core.clone();
+                let keyboard = source_keyboard.clone();
+                std::thread::spawn(move || {
+                    while !keyboard.closing() {
+                        source.poll(&core);
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                    }
+                });
                 let core = follow_core.clone();
                 let keyboard = follow_keyboard.clone();
                 std::thread::spawn(move || {

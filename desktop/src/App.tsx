@@ -378,8 +378,13 @@ export function App() {
             </span>
           ) : dirty ? (
             '未保存'
-          ) : device.connected && live === 'idle' ? (
-            'ChatGPT App 状态待接入'
+          ) : status?.desktop.source?.available ? (
+            'Codex 已连接'
+          ) : status?.desktop.source?.code === 'CodexDataNotFound' ? (
+            '等待本机 Codex 任务'
+          ) : status?.desktop.source?.code &&
+            status.desktop.source.code !== 'CodexSourceStarting' ? (
+            'Codex 状态暂不可用'
           ) : null}
         </div>
         <label className="hold">

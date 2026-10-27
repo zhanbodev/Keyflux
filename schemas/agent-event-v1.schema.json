@@ -39,6 +39,7 @@
     "kind": {
       "enum": [
         "turn_started",
+        "working",
         "thinking",
         "output",
         "tool_started",

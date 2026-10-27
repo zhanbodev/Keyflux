@@ -7,7 +7,12 @@ export interface Status {
     lighting?: { color: string; brightness: number } | null;
     theme_schema_versions: number[];
   };
-  desktop: { core_owned: boolean; hardware_writes: boolean; instance_id: string };
+  desktop: {
+    core_owned: boolean;
+    hardware_writes: boolean;
+    instance_id: string;
+    source?: { available: boolean; code: string | null; streaming_phases: boolean };
+  };
 }
 export interface Device {
   connected: boolean;

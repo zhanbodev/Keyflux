@@ -1,7 +1,7 @@
 const std = @import("std");
 
 pub const Phase = enum { idle, working, thinking, output, tool, attention, complete, @"error", unknown };
-pub const Kind = enum { turn_started, thinking, output, tool_started, tool_finished, attention, attention_resolved, turn_completed, turn_cancelled, turn_failed, source_lost, source_resumed, session_ended };
+pub const Kind = enum { turn_started, working, thinking, output, tool_started, tool_finished, attention, attention_resolved, turn_completed, turn_cancelled, turn_failed, source_lost, source_resumed, session_ended };
 
 /// Borrowed strings: valid only for the duration of Engine.apply(). No content fields.
 pub const Event = struct {

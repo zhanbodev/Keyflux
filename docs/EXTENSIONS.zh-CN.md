@@ -66,6 +66,7 @@ AI source → adapter → AgentEvent v1 → state aggregation
 | kind | 含义 |
 | --- | --- |
 | `turn_started` | 开始根回合或子任务，只建立 `working`，不证明 `thinking` |
+| `working` | 已确认的普通活动；阶段未知，保留未解决的请求 |
 | `thinking` | 明确观测到 reasoning 活动 |
 | `output` | 明确观测到 assistant 文本输出 |
 | `tool_started` / `tool_finished` | 打开／关闭同一个 `request_id` |
@@ -83,7 +84,9 @@ AI source → adapter → AgentEvent v1 → state aggregation
 
 汇总优先级为：活跃待处理 → 已记录错误 → 来源不可用 → 活跃工作 → 完成保持 → 空闲。普通活跃任务取最近的有效阶段；任务存在在途工具请求时，工具状态覆盖其普通阶段。其他会话完成不能覆盖仍在进行的 working/thinking/output/tool。unknown 和 idle 释放模拟灯光租约并恢复原状态。
 
-当前上限：64 个会话、每回合 8 个任务（含根任务）、每任务 8 个待关联请求、256 个近期去重摘要。容量耗尽返回错误。会话墓碑保留至 reset／重启，活动任务状态不跨核心重启恢复。当前没有基于心跳或进程状态的自动崩溃检测。
+当前上限：64 个会话、每回合 8 个任务（含根任务）、每任务 8 个待关联请求、256 个近期去重摘要。仅在会话容量满时回收最早结束的墓碑；退役时间水位拒绝旧 start。活动会话不被淘汰，全部活动时返回容量错误。核心不持久化活动任务。本地 Codex adapter 使用真实 writer 与结构事件重建状态和检测失联，其他 adapter 负责各自的来源可用性。
+
+草案修订 2026-10-27：新增 `working` kind，现有字段与 kind 语义不变。旧核心不支持此 kind，使用方须显式升级核心。详见 [AgentEvent 专项说明](specs/agent-event-v1.md)。
 
 ### 最小适配器示例
 

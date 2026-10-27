@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-27",
+  "scope": "internal macOS local Codex Desktop integration",
+  "reference": {
+    "repository": "https://github.com/NuPhyLab/Air75-V3-RGB-Lab",
+    "revision": "9bd300bc6f7eaaad8f766a1a6ef752bbf530088d",
+    "license": "MIT",
+    "files": [
+      "server/codex.mjs",
+      "server/codex-event-tail.mjs",
+      "server/codex-writers.mjs"
+    ]
+  },
+  "environment": {
+    "application": "ChatGPT",
+    "bundle_id": "com.openai.codex",
+    "version": "26.1021.31345",
+    "build": "21828",
+    "local_runtime": "0.164.0-alpha.11.1",
+    "index_schema": "state_5.sqlite",
+    "platform": "macos",
+    "architecture": "aarch64"
+  },
+  "source": {
+    "synthetic_events_submitted": false,
+    "index_read_only": true,
+    "codex_configuration_changed": false,
+    "hooks_required": false,
+    "api_key_required": false,
+    "raw_content_persisted": false,
+    "provider": "codex.desktop.local",
+    "live_read_only_test": {
+      "passed": true,
+      "tracked_sessions": 47,
+      "active_sessions": 2,
+      "forwarded_observations": 7,
+      "aggregate_phase": "tool"
+    }
+  },
+  "hardware": {
+    "model": "Kick75 NuPhyIO",
+    "firmware": "4.0.18.6",
+    "profile": "Mac",
+    "transport": "usb",
+    "test": "manual_real_desktop_to_kick75",
+    "passed": true,
+    "actual_observed_phase": "working",
+    "requested_color": "#3B82F6",
+    "brightness": 15,
+    "independent_D5_readback": true,
+    "strip_bytes_unchanged": true,
+    "exact_17_byte_original_restore_on_disconnect": true,
+    "new_source_events_simulated": false,
+    "first_attempt": "DeviceNotFound before mutation; passed after user reconnected USB Mac profile"
+  },
+  "acceptance_limits": [
+    "Live completed reasoning/message records are ordinary activity, not real-time Thinking/output.",
+    "No live App completion/approval was physically verified in this run; deterministic replay covers these paths.",
+    "Work and Chat are not covered.",
+    "Windows writer ownership and physical HID remain unverified.",
+    "No P95 latency claim; firmware persistence and physical lifecycle release gates remain open."
+  ],
+  "privacy": "No thread IDs, turns, prompt/answer/tool bodies, private paths or credentials are included.",
+  "validation": {
+    "rust": {
+      "passed": 30,
+      "ignored_opt_in": 4
+    },
+    "zig": {
+      "passed": 35
+    },
+    "theme_color_vitest": {
+      "passed": 16
+    },
+    "ipc_python": {
+      "passed": 11
+    },
+    "layout_python": {
+      "passed": 3
+    },
+    "playwright": {
+      "passed": 8
+    },
+    "clippy_all_targets": "passed",
+    "format": "passed",
+    "windows_zig_cross_build": "passed",
+    "macos_app_build": "passed",
+    "codesign_deep_strict": "passed",
+    "total_software_tests_passed": 103
+  },
+  "final_native_app": {
+    "usb_connected": true,
+    "source_label": "Codex 已连接",
+    "observed_phase": "working",
+    "readback": {
+      "mode": 3,
+      "brightness": 50,
+      "rgb": [
+        59,
+        130,
+        246
+      ]
+    },
+    "instance": "normal release App with automatic reader and real HID follower",
+    "configuration_edited_for_final_check": false
+  }
+}

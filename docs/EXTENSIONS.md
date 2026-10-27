@@ -66,6 +66,7 @@ The timestamp above is for schema/offline demonstration. A live adapter must gen
 | Kind | Meaning |
 | --- | --- |
 | `turn_started` | Begin a root turn or child task; establishes `working`, not `thinking` |
+| `working` | Confirmed ordinary activity with no exposed fine phase; preserve pending requests |
 | `thinking` | Explicitly observed reasoning activity |
 | `output` | Explicitly observed assistant text output |
 | `tool_started` / `tool_finished` | Open/close the same `request_id` |
@@ -83,7 +84,9 @@ An unresolved tool request keeps the task in `tool` unless attention applies. Re
 
 Aggregation precedence is: active attention → recorded error → unavailable source → active work → completion hold → idle. Among ordinary active tasks, the most recent eligible phase wins. A known in-flight tool request overrides its task's ordinary phase. Normal working/thinking/output/tool activity cannot be hidden by another session's completion. Unknown and idle release the simulated lighting lease.
 
-Current bounds are 64 sessions, 8 tasks per turn including the root, 8 pending requests per task, and 256 recent deduplication digests. Capacity exhaustion is an error. Session tombstones remain until reset/restart; active task state is not restored across core restarts. There is no heartbeat-based or automatic process-crash detection yet.
+Current bounds are 64 sessions, 8 tasks per turn including the root, 8 pending requests per task, and 256 recent deduplication digests. At session capacity, only the oldest ended tombstone can be recycled. A retirement timestamp watermark rejects historical starts. Active sessions are never evicted; full active capacity is an error. The core does not persist active tasks. The local Codex adapter revalidates writer ownership and structural observations after restart; other adapters own their source-availability detection.
+
+Draft revision 2026-10-27 adds `working` without changing existing meanings. Older cores reject this new kind; explicitly upgrade the core with an adapter that uses it. See the [event notes](specs/agent-event-v1.md).
 
 ### Minimal any-language adapter example
 

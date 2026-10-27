@@ -8,14 +8,14 @@
 
 A local AI status lighting companion, built around a Zig core for macOS and Windows. Keyflux maps agent activity to keyboard lighting, with separate extension points for keyboards, AI integrations, and visual effects.
 
-**Current stage: v0.1 internal validation. Manual Kick75 IO main-light tests work on macOS / USB / firmware 4.0.18.6 / Mac keyboard profile.** Static colors, exact configuration readback and original-effect restoration passed physical testing. The desktop background follower and real USB path passed a controlled event test; actual ChatGPT App Work/Chat/Codex event adapters, write persistence and the full device lifecycle remain unverified.
+**Current stage: v0.1 internal validation.** The App automatically reads real local Codex Desktop sessions. A real Desktop working state drove USB Kick75 IO main lighting (macOS / firmware 4.0.18.6 / Mac profile), with independent readback and exact restoration on disconnect. Live streaming Thinking/output, Work/Chat, write persistence and the full device lifecycle remain unverified.
 
 ## What works today
 
 - A Zig state engine that aggregates sessions, correlates tool and approval events, and rejects stale events after a turn ends.
 - A development-only simulated keyboard for offline protocol tests, write deduplication and crash-recovery tests; the App never uses this backend.
 - Read-only NuPhy USB HID inventory, plus an experimental Kick75 IO (`19f5:1026`) main-light driver with manual solid colors, exact readback and durable raw-state recovery.
-- A Codex hook adapter and an optional authenticated, loopback-only OTLP/HTTP receiver for JSON and protobuf logs.
+- An automatic read-only local Codex Desktop adapter, plus a developer hook adapter and an optional authenticated, loopback-only OTLP/HTTP receiver for JSON and protobuf logs.
 - A shared Tauri 2 + React/TypeScript settings app with model previews, per-state RGB/brightness editing, main/side palettes and native file dialogs. Kick75 combines extracted geometry with locally cached NuPhy reference artwork; unverified layout examples are excluded from the App catalog.
 - Versioned event, keyboard-model, and theme contracts with validators and contribution guidance.
 
@@ -94,11 +94,11 @@ node desktop/scripts/dev.mjs
 
 The launcher builds the Zig sidecar and opens a **real read-only core** in an isolated development directory. Click **Connect keyboard** to identify the actual USB device. Startup never connects automatically. Until a successful connection, the App shows a neutral outline and connection gate; editing, brightness, import/export, saving and physical actions are locked. There is no simulated device or browser fixture entry in the shipped frontend.
 
-For the verified Kick75 combination, Connect starts background following of actual core events. Edit colors and click **Save**; **Default** saves the default palette. Manual Apply/Restore/Follow controls and configuration readback labels are removed. Visible settings recheck an existing connection every approximately 4.5 seconds. Losing USB locks controls and stops device probing until the user clicks Connect again. **Disconnect** restores a capture owned by this App. Draft edits survive disconnect/reconnect. A compatible interrupted capture is recovered internally on Connect; unknown/mismatched records block writes. Strip editing remains screen-only. The first release targets the ChatGPT desktop App (Work, Chat and Codex); actual App event adapters remain unverified, so connection alone does not imply live monitoring. See [desktop integration scope](docs/CHATGPT_DESKTOP.md).
+For the verified Kick75 combination, Connect starts background following of actual core events. Edit colors and click **Save**; **Default** saves the default palette. Manual Apply/Restore/Follow controls and configuration readback labels are removed. Visible settings recheck an existing connection every approximately 4.5 seconds. Losing USB locks controls and stops device probing until the user clicks Connect again. **Disconnect** restores a capture owned by this App. Draft edits survive disconnect/reconnect. A compatible interrupted capture is recovered internally on Connect; unknown/mismatched records block writes. Strip editing remains screen-only. The first release targets the ChatGPT desktop App (Work, Chat and Codex); local Codex monitoring is active automatically, while Work/Chat and live streaming phases remain unverified. See [desktop integration scope](docs/CHATGPT_DESKTOP.md).
 
 The top keyboard has no card background, floating/sticky layer or selectable keys. The white console fits the supported window sizes without page scrolling, with vertical **Main / Light bar** navigation, a compact state list and a custom saturation/value + hue + RGB picker. Menus are app-drawn. Light color follows the original key-outline masks rather than filling the key faces. The old artificial outer gray strips are removed; the optional small right light-bar aperture is a screen illustration only.
 
-The Zig core resolves the saved palette for actual observed state. The desktop session follows that intent in the background, deduplicates writes and restores the original effect on idle/source loss/Disconnect/Quit. Selecting a preview color does not write hardware before Save. Windows and unverified firmware remain read-only. This internal flow does not certify real Codex stream coverage, flash behavior or end-to-end latency; Work, Chat and Codex need separate validated App adapters; a passing HID test does not prove App coverage.
+The Zig core resolves the saved palette for actual observed state. The desktop session follows that intent in the background, deduplicates writes and restores the original effect on idle/source loss/Disconnect/Quit. Selecting a preview color does not write hardware before Save. Windows and unverified firmware remain read-only. This internal flow does not certify real Codex stream coverage, flash behavior or end-to-end latency; Work and Chat still need separate validated App adapters. See the [local Codex source](docs/CODEX_LOCAL.md).
 
 ```sh
 ./scripts/dev-macos.sh --no-build       # Reuse the built Zig sidecar
@@ -131,17 +131,9 @@ On Ubuntu or another development system, `zig test src/tests.zig` exercises the 
 
 ## Codex integration
 
-Generate reviewable configuration fragments:
+The desktop App automatically observes existing local Codex sessions through a read-only index and incremental event reader. Connect the USB keyboard to follow working, correlated tool/input and terminal states. No CLI session, API key, hooks trust or manual telemetry setup is required. [Source scope and verified behavior](docs/CODEX_LOCAL.md).
 
-```sh
-./zig-out/bin/keyflux setup-codex "$PWD/zig-out/bin/keyflux"
-```
-
-This command does not apply configuration. Follow the [Codex integration guide (Chinese)](docs/CODEX.md) to preserve existing hooks/exporter settings, review and trust the hooks, and test the actual desktop version.
-
-Start the optional receiver with `keyflux serve --simulate --otlp-port 4318`. It listens only on `127.0.0.1`; the Bearer token is stored in the instance's `otlp-token` file. Keep that file private. The receiver retains structural event fields, not prompts, conversation text, or tool bodies. No telemetry is automatically uploaded by Keyflux.
-
-Actual desktop event coverage, session correlation, export delay, and automatic source-crash detection remain validation work. Simulated input does not certify these capabilities.
+Current recordings expose completed reasoning/message items, so this adapter does not claim real-time Thinking/output. Work and Chat remain separate integration work. Advanced hook/OTLP tools are still available for adapter development; see the [developer guide](docs/CODEX.md).
 
 ## Extend Keyflux
 
