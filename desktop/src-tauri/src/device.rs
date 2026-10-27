@@ -586,7 +586,9 @@ mod tests {
     }
     #[test]
     fn unknown_firmware_is_never_writable() {
-        let probe = json!({"schema_version":1,"model_id":"nuphy-kick75-io","profile":0,"led_count":85,"input_bytes":64,"output_bytes":64,"firmware":[18,0,5,170,6,0,247,247],"geometry":[0,8,4,6,15,130,247,247]});
-        assert!(!writable(&probe));
+        let mut unknown = probe();
+        unknown["firmware"][2] = json!(5);
+        assert!(valid_probe(&unknown));
+        assert!(!writable(&unknown));
     }
 }
