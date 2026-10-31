@@ -18,9 +18,9 @@ fn rounded(x: f32, y: f32, left: f32, top: f32, width: f32, height: f32, radius:
 
 fn menu_bar_icon() -> tauri::image::Image<'static> {
     // macOS normalizes the canvas to 18pt high. Keep the keyboard centered
-    // at about 22.4 × 14.5pt, slightly smaller than the original tight mark.
+    // at about 17.9 × 11.6pt, with breathing room around the mark.
     const SCALE: u32 = 4;
-    const MARK_SCALE: f32 = 0.88;
+    const MARK_SCALE: f32 = 0.70;
     let mut pixels = Vec::with_capacity((24 * 18 * SCALE * SCALE * 4) as usize);
     for row in 0..18 * SCALE {
         for column in 0..24 * SCALE {

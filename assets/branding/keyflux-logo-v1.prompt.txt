@@ -1,0 +1,12 @@
+Generator: built-in imagegen
+Transparent background: true
+
+Use case: logo-brand.
+Create ONE finished original logo symbol for Keyflux, a lightweight native desktop utility that translates AI agent activity into mechanical keyboard lighting. Deliver a polished brand mark suitable for an app icon, README and website.
+Concept: an abstract uppercase K built from three bold, precisely aligned geometric signal tracks. A clear upright left stem, and two clean angled arms branching toward the upper-right and lower-right. Express a controlled flow of light and changing computational states through the geometry. Keep the silhouette compact, calm and immediately readable at small sizes. Strong optical balance, generous negative space, meticulous proportions. The geometry itself should be distinctive and memorable.
+Style: contemporary minimal flat vector-style graphic, sharp clean edges with only very slight corner softening. Premium technical identity. No literal keyboard drawing.
+Palette: predominantly vibrant cool cyan #06B6D4 and one restrained electric violet #8B5CF6 accent. Solid flat color regions; no gradient, glow, shadows or texture. Ensure the silhouette works on both very dark and light UI backgrounds.
+Composition: one standalone centered symbol on a square transparent canvas, about 70% of the canvas width, generous consistent padding. No surrounding tile or enclosing border.
+Text: NONE. Symbol only.
+Avoid: wordmark, tagline, labels, mockup, presentation board, multiple variants, photorealism, 3D, bevels, chrome, particles, thin circuit traces, generic lightning bolt, power button, AI sparkle, infinity symbol, decorative ornament, watermark.
+Background must be genuinely transparent with alpha.

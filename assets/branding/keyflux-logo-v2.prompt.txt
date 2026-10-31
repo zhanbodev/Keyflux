@@ -1,0 +1,13 @@
+Generator: built-in imagegen
+Transparent background: true
+
+Use case: logo-brand.
+Create ONE original finished logo symbol for Keyflux, a native AI-agent-to-keyboard RGB status utility. This is a fresh new logo direction: the user wants a miniature mechanical KEYBOARD with a playful, precise NuPhy-inspired industrial design language, combined with Keyflux's flowing AI status-light identity.
+Subject: a simplified compact low-profile mechanical keyboard, straight top-down orthographic view, horizontally oriented and optically balanced. Use a small number of broad blank keycaps arranged in a meticulously aligned grid, about 5 to 6 columns across and 3 short rows plus one clearly recognizable long spacebar. Preserve a convincing keyboard silhouette, while simplifying the layout enough to remain legible as an application icon at small sizes.
+Brand character: contemporary, friendly technical precision, thoughtful hardware design, subtle NuPhy-style color blocking. Cool light-gray / porcelain keycaps inside a slim deep graphite-blue keyboard case. A single small sunny yellow Esc key gives a playful mechanical-keyboard accent.
+Keyflux element: four to five central keycaps form one intentional stepped signal-flow path across the keyboard, changing from vivid cool cyan to electric violet. The colored keys are the identity and communicate AI thinking and output stages as a flowing pulse. Use discrete solid color blocks with crisp separation, NOT a rainbow wash. Let this path feel like a coherent abstract glyph embedded within the key grid, rather than random colorful keys. The long spacebar is cool white, keeping the signal path visually dominant.
+Style: premium minimal flat vector-like logo, bold clean forms, consistent modest corner radii, excellent spacing and clear negative space. Subtle inset keycap shapes are okay, but no glossy 3D rendering. Make the logo feel designed, not like a stock keyboard emoji. Recognizable even when reduced.
+Composition: ONE centered keyboard symbol only on a square genuinely transparent background, comfortably filling about 78 percent of canvas width, plenty of clean margin. No enclosing app-icon square.
+Text: absolutely none; no letters on keys, no wordmark, no company logo, no slogans.
+Avoid: copying the NuPhy logo, literal NuPhy text, old abstract K monogram, cables, hands, desk scenes, AI stars, brains, circuit traces, floating decorations, particles, heavy glow, drop shadow outside the silhouette, bevels, textures, gradient background, multiple concepts or mockup sheets, watermarks.
+Output: a crisp high-resolution transparent PNG logo asset with genuine alpha.
